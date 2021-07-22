@@ -1,0 +1,16 @@
+.container{
+display: grid;
+/* grid-template-columns:  1fr ;
+grid-template-rows: 1fr   ; */
+}
+.bodylogin {
+    background-image: url("../img/724.jpg");
+    background-repeat: no-repeat;
+    background-size:cover;
+    
+  }
+  .fonts{
+    font-size: 50px;
+    color: white;
+  }
+
