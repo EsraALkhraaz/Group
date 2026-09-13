@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GlowSpot - إدارة المنصة</title>
+<link rel="stylesheet" href="glowspot-style.css">
+<style>
+  #app{padding-bottom:40px;}
+  .gs-navlinks{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;background:#fff;border-bottom:1px solid var(--gs-border);position:sticky;top:56px;z-index:40;}
+  .gs-navlinks button{white-space:nowrap;border:none;background:#f8f1f4;color:#555;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .gs-navlinks button.active{background:linear-gradient(135deg,var(--gs-primary),var(--gs-secondary));color:#fff;}
+  .gs-checks{display:flex;flex-wrap:wrap;gap:8px;}
+  .gs-checks label{background:#f8f1f4;border-radius:10px;padding:6px 10px;font-size:12.5px;display:flex;align-items:center;gap:5px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modalRoot"></div>
+<div id="toast" class="gs-toast"></div>
+
+<script src="glowspot-storage.js"></script>
+<script>
+(function(){
+  'use strict';
+  var S = window.storage;
+  var state = { tab:'overview' };
+  var ADMIN_PASSWORD = 'glowspot2026';
+
+  function toast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},2200); }
+  function esc(s){ return (s||'').toString().replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function statusLabel(s){ var m={pending:'قيد الانتظار',confirmed:'مؤكد',in_service:'قيد التنفيذ',completed:'مكتمل',declined:'مرفوض',cancelled:'ملغي',no_show:'لم تحضر'}; return m[s]||s; }
+  function centerStatusLabel(s){ var m={pending:'قيد المراجعة',approved:'مفعّل',disabled:'معطّل'}; return m[s]||s; }
+
+  function isAdmin(){ var sess = S.getSession('admin'); return sess && sess.role==='admin'; }
+
+  function renderLogin(){
+    document.getElementById('app').innerHTML =
+      '<div class="gs-login-wrap"><div class="gs-login-card">'+
+      '<div class="gs-logo-big">✨ GlowSpot</div><div class="gs-tag">إدارة المنصة</div>'+
+      '<div class="gs-field" style="text-align:right"><label>كلمة مرور الإدارة</label><input class="gs-input" type="password" id="loginPass"></div>'+
+      '<button class="gs-btn gs-btn-primary gs-btn-block" id="loginBtn">دخول</button>'+
+      '</div></div>';
+    document.getElementById('loginBtn').onclick = function(){
+      var p = document.getElementById('loginPass').value;
+      if (p !== ADMIN_PASSWORD){ toast('كلمة المرور غير صحيحة'); return; }
+      S.setSession({ role:'admin' });
+      renderApp();
+    };
+  }
+
+  function renderApp(){
+    if (!isAdmin()){ renderLogin(); return; }
+    var app = document.getElementById('app');
+    app.innerHTML =
+      '<div class="gs-topbar"><div class="gs-logo">✨ GlowSpot<span>لوحة الإدارة</span></div>'+
+      '<button class="gs-btn gs-btn-sm" style="background:rgba(255,255,255,.2);color:#fff" id="logoutBtn">خروج</button></div>'+
+      '<div class="gs-navlinks">'+
+        navBtn('overview','التحليلات')+ navBtn('centers','المراكز')+ navBtn('users','المستخدمات')+
+        navBtn('bookings','الحجوزات')+ navBtn('reviews','التقييمات')+
+      '</div>'+
+      '<div id="tabContent" class="gs-container"></div>';
+    document.getElementById('logoutBtn').onclick = function(){ S.clearSession('admin'); renderLogin(); };
+    Array.prototype.forEach.call(document.querySelectorAll('.gs-navlinks button'), function(b){
+      b.onclick = function(){ state.tab=b.dataset.tab; renderApp(); };
+    });
+    renderTab();
+  }
+  function navBtn(tab,label){ return '<button class="'+(state.tab===tab?'active':'')+'" data-tab="'+tab+'">'+label+'</button>'; }
+
+  function renderTab(){
+    var c = document.getElementById('tabContent');
+    if (state.tab==='overview') c.innerHTML = renderOverview();
+    else if (state.tab==='centers') c.innerHTML = renderCenters();
+    else if (state.tab==='users') c.innerHTML = renderUsers();
+    else if (state.tab==='bookings') c.innerHTML = renderBookingsTab();
+    else if (state.tab==='reviews') c.innerHTML = renderReviewsTab();
+    bindEvents();
+  }
+
+  /* ---------------- OVERVIEW / ANALYTICS ---------------- */
+  function renderOverview(){
+    var centers = S.getAll(S.KEYS.centers);
+    var experts = S.getAll(S.KEYS.experts);
+    var customers = S.getAll(S.KEYS.customers);
+    var bookings = S.getAll(S.KEYS.bookings);
+    var revenue = bookings.filter(function(b){ return b.status==='completed'; }).reduce(function(a,b){ return a+(b.price||0); },0);
+
+    var byCenter = {};
+    bookings.filter(function(b){ return b.status==='completed'; }).forEach(function(b){
+      byCenter[b.centerId] = (byCenter[b.centerId]||0) + (b.price||0);
+    });
+    var topCenters = Object.keys(byCenter).map(function(id){
+      var c = S.getById(S.KEYS.centers, id);
+      return { name: c? c.name : id, revenue: byCenter[id] };
+    }).sort(function(a,b){ return b.revenue-a.revenue; }).slice(0,5);
+
+    var statusCounts = {};
+    bookings.forEach(function(b){ statusCounts[b.status] = (statusCounts[b.status]||0)+1; });
+
+    return '<div class="gs-section-title">التحليلات والإيرادات</div>'+
+      '<div class="gs-stat-grid">'+
+      stat(centers.length,'المراكز')+ stat(experts.length,'الخبيرات')+
+      stat(customers.length,'العميلات')+ stat(revenue+' د.أ','إجمالي الإيرادات')+
+      '</div>'+
+      '<div class="gs-section-title">الحجوزات حسب الحالة</div>'+
+      '<div class="gs-card">'+Object.keys(statusCounts).map(function(s){
+        return '<div class="gs-flex-between" style="padding:6px 0"><span>'+statusLabel(s)+'</span><b>'+statusCounts[s]+'</b></div>';
+      }).join('') + (Object.keys(statusCounts).length? '' : '<div class="gs-empty">لا توجد حجوزات بعد</div>') +'</div>'+
+      '<div class="gs-section-title">أعلى المراكز إيراداً</div>'+
+      '<div class="gs-card">'+(topCenters.map(function(t){
+        return '<div class="gs-flex-between" style="padding:6px 0"><span>'+esc(t.name)+'</span><b>'+t.revenue+' د.أ</b></div>';
+      }).join('') || '<div class="gs-empty">لا يوجد بيانات بعد</div>')+'</div>';
+  }
+  function stat(num,lbl){ return '<div class="gs-stat"><div class="num">'+num+'</div><div class="lbl">'+lbl+'</div></div>'; }
+
+  /* ---------------- CENTERS ---------------- */
+  function renderCenters(){
+    var centers = S.getAll(S.KEYS.centers);
+    var rows = centers.map(function(c){
+      var badgeClass = c.status==='approved'?'gs-badge-completed':(c.status==='pending'?'gs-badge-pending':'gs-badge-cancelled');
+      var actions = '';
+      if (c.status==='pending') actions += '<button class="gs-btn gs-btn-sm gs-btn-success" data-approve="'+c.id+'">قبول</button><button class="gs-btn gs-btn-sm gs-btn-danger" data-reject="'+c.id+'">رفض</button>';
+      if (c.status==='approved') actions += '<button class="gs-btn gs-btn-sm gs-btn-muted" data-disable="'+c.id+'">تعطيل</button>';
+      if (c.status==='disabled') actions += '<button class="gs-btn gs-btn-sm gs-btn-success" data-approve="'+c.id+'">إعادة تفعيل</button>';
+      return '<div class="gs-card" style="margin-bottom:10px"><div class="gs-flex-between"><b>'+esc(c.name)+'</b><span class="gs-badge '+badgeClass+'">'+centerStatusLabel(c.status)+'</span></div>'+
+        '<div style="font-size:12.5px;color:var(--gs-muted)">'+esc(c.city)+' · حساب الدخول: '+esc(c.username)+'</div>'+
+        '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">'+actions+'</div></div>';
+    }).join('') || '<div class="gs-empty">لا توجد مراكز بعد</div>';
+    return '<div class="gs-section-title">المراكز<button class="gs-btn gs-btn-sm gs-btn-primary" id="addCenterBtn">+ إنشاء مركز</button></div>'+rows;
+  }
+
+  function centerFormHtml(){
+    var deptChecks = S.DEPARTMENTS.map(function(d){
+      return '<label><input type="checkbox" value="'+d.id+'" class="cDept"> '+d.name+'</label>';
+    }).join('');
+    return field('اسم المركز','cName')+ field('المدينة','cCity')+ field('الموقع','cLocation')+
+      '<div class="gs-field"><label>نبذة</label><textarea class="gs-textarea" id="cAbout" rows="2"></textarea></div>'+
+      field('اسم المستخدم (دخول لوحة المركز)','cUsername')+ field('كلمة المرور','cPassword')+
+      '<div class="gs-field"><label>الأقسام</label><div class="gs-checks">'+deptChecks+'</div></div>'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px"><input type="checkbox" id="cHomeService"> يقدم خدمة منزلية</label>';
+  }
+  function field(label,id,val){ return '<div class="gs-field"><label>'+label+'</label><input class="gs-input" id="'+id+'" value="'+esc(val||'')+'"></div>'; }
+
+  function openCenterModal(){
+    showModal('إنشاء مركز جديد', centerFormHtml()+'<button class="gs-btn gs-btn-primary gs-btn-block" id="saveCenter" style="margin-top:12px">إنشاء</button>');
+    document.getElementById('saveCenter').onclick = function(){
+      var name = document.getElementById('cName').value.trim();
+      var username = document.getElementById('cUsername').value.trim();
+      var password = document.getElementById('cPassword').value;
+      if (!name || !username || !password){ toast('يرجى تعبئة الحقول الأساسية'); return; }
+      if (S.getAll(S.KEYS.centers).some(function(c){ return c.username===username; })){ toast('اسم المستخدم مستخدم مسبقاً'); return; }
+      var depts = Array.prototype.map.call(document.querySelectorAll('.cDept:checked'), function(el){ return el.value; });
+      S.add(S.KEYS.centers, {
+        name:name, city:document.getElementById('cCity').value.trim(), location:document.getElementById('cLocation').value.trim(),
+        about:document.getElementById('cAbout').value.trim(), verified:false, rating:0, status:'pending',
+        departments:depts, username:username, password:password, paymentMethods:{}, homeService:document.getElementById('cHomeService').checked, views:0
+      });
+      closeModal(); toast('تم إنشاء المركز، بانتظار التفعيل'); renderTab();
+    };
+  }
+
+  /* ---------------- USERS ---------------- */
+  function renderUsers(){
+    var customers = S.getAll(S.KEYS.customers);
+    var rows = customers.map(function(c){
+      return '<tr><td>'+esc(c.name)+'</td><td>'+esc(c.phone)+'</td><td>'+(c.favorites||[]).length+'</td></tr>';
+    }).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--gs-muted);padding:20px">لا يوجد عميلات بعد</td></tr>';
+    return '<div class="gs-section-title">المستخدمات</div>'+
+      '<div class="gs-card" style="overflow-x:auto"><table class="gs-table"><thead><tr><th>الاسم</th><th>الهاتف</th><th>عدد المفضلة</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  }
+
+  /* ---------------- BOOKINGS ---------------- */
+  function renderBookingsTab(){
+    var bookings = S.getAll(S.KEYS.bookings).sort(function(a,b){ return (b.date+b.time).localeCompare(a.date+a.time); });
+    var rows = bookings.map(function(b){
+      return '<div class="gs-card" style="margin-bottom:8px"><div class="gs-flex-between"><b>'+esc(b.service)+'</b><span class="gs-badge gs-badge-'+b.status+'">'+statusLabel(b.status)+'</span></div>'+
+        '<div style="font-size:12px;color:var(--gs-muted)">'+esc(b.centerName)+' · '+esc(b.customerName)+' · '+esc(b.expertName||'—')+'</div>'+
+        '<div style="font-size:12.5px">📅 '+b.date+' ⏰ '+b.time+' · 💰 '+b.price+' د.أ</div></div>';
+    }).join('') || '<div class="gs-empty">لا توجد حجوزات بعد</div>';
+    return '<div class="gs-section-title">كل الحجوزات</div>'+rows;
+  }
+
+  /* ---------------- REVIEWS ---------------- */
+  function renderReviewsTab(){
+    var reviews = S.getAll(S.KEYS.reviews).reverse();
+    var rows = reviews.map(function(r){
+      var c = S.getById(S.KEYS.centers, r.centerId);
+      return '<div class="gs-card" style="margin-bottom:8px"><div class="gs-flex-between"><b>'+esc(r.customerName)+'</b><span class="gs-star">'+'★'.repeat(r.rating)+'</span></div>'+
+        '<div style="font-size:12px;color:var(--gs-muted)">'+esc(c?c.name:'')+'</div>'+
+        '<div style="font-size:12.5px">'+esc(r.comment||'')+'</div></div>';
+    }).join('') || '<div class="gs-empty">لا توجد تقييمات بعد</div>';
+    return '<div class="gs-section-title">كل التقييمات</div>'+rows;
+  }
+
+  /* ---------------- EVENTS ---------------- */
+  function bindEvents(){
+    if (state.tab==='centers'){
+      document.getElementById('addCenterBtn').onclick = openCenterModal;
+      Array.prototype.forEach.call(document.querySelectorAll('[data-approve]'), function(el){
+        el.onclick = function(){ S.update(S.KEYS.centers, el.dataset.approve, {status:'approved'}); toast('تم التفعيل'); renderTab(); };
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-reject]'), function(el){
+        el.onclick = function(){ if(confirm('رفض هذا المركز؟')){ S.remove(S.KEYS.centers, el.dataset.reject); toast('تم الرفض'); renderTab(); } };
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-disable]'), function(el){
+        el.onclick = function(){ S.update(S.KEYS.centers, el.dataset.disable, {status:'disabled'}); toast('تم التعطيل'); renderTab(); };
+      });
+    }
+  }
+
+  function showModal(title, bodyHtml){
+    document.getElementById('modalRoot').innerHTML =
+      '<div class="gs-modal-backdrop" id="modalBackdrop"><div class="gs-modal">'+
+      '<span class="gs-close" id="modalClose">✕</span><h3>'+esc(title)+'</h3>'+bodyHtml+'</div></div>';
+    document.getElementById('modalClose').onclick = closeModal;
+    document.getElementById('modalBackdrop').onclick = function(e){ if(e.target.id==='modalBackdrop') closeModal(); };
+  }
+  function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+
+  renderApp();
+})();
+</script>
+</body>
+</html>

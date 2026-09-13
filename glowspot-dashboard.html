@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GlowSpot - لوحة صاحبة المركز</title>
+<link rel="stylesheet" href="glowspot-style.css">
+<style>
+  #app{padding-bottom:40px;}
+  .gs-navlinks{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;background:#fff;border-bottom:1px solid var(--gs-border);position:sticky;top:56px;z-index:40;}
+  .gs-navlinks button{white-space:nowrap;border:none;background:#f8f1f4;color:#555;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .gs-navlinks button.active{background:linear-gradient(135deg,var(--gs-primary),var(--gs-secondary));color:#fff;}
+  .gs-dept-toggle{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--gs-border);}
+  .gs-switch{width:44px;height:24px;border-radius:20px;background:#ddd;position:relative;cursor:pointer;flex-shrink:0;}
+  .gs-switch.on{background:var(--gs-primary);}
+  .gs-switch .knob{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:right .15s;}
+  .gs-switch.on .knob{right:22px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modalRoot"></div>
+<div id="toast" class="gs-toast"></div>
+
+<script src="glowspot-storage.js"></script>
+<script>
+(function(){
+  'use strict';
+  var S = window.storage;
+  var state = { tab:'overview' };
+
+  function toast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},2200); }
+  function esc(s){ return (s||'').toString().replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function statusLabel(s){ var m={pending:'قيد الانتظار',confirmed:'مؤكد',in_service:'قيد التنفيذ',completed:'مكتمل',declined:'مرفوض',cancelled:'ملغي',no_show:'لم تحضر'}; return m[s]||s; }
+
+  function currentCenter(){
+    var sess = S.getSession('center');
+    if (!sess || sess.role!=='center') return null;
+    return S.getById(S.KEYS.centers, sess.id);
+  }
+
+  function renderLogin(){
+    document.getElementById('app').innerHTML =
+      '<div class="gs-login-wrap"><div class="gs-login-card">'+
+      '<div class="gs-logo-big">✨ GlowSpot</div><div class="gs-tag">لوحة تحكم صاحبة المركز</div>'+
+      '<div class="gs-field" style="text-align:right"><label>اسم المستخدم</label><input class="gs-input" id="loginUser"></div>'+
+      '<div class="gs-field" style="text-align:right"><label>كلمة المرور</label><input class="gs-input" type="password" id="loginPass"></div>'+
+      '<button class="gs-btn gs-btn-primary gs-btn-block" id="loginBtn">دخول</button>'+
+      (S.getAll(S.KEYS.centers).some(function(c){return c.status==='pending';}) ? '' : '')+
+      '<div style="margin-top:10px;font-size:11.5px;color:var(--gs-muted)">للتجربة: glowbeauty / center123</div>'+
+      '</div></div>';
+    document.getElementById('loginBtn').onclick = function(){
+      var u = document.getElementById('loginUser').value.trim();
+      var p = document.getElementById('loginPass').value;
+      var c = S.getAll(S.KEYS.centers).filter(function(x){ return x.username===u && x.password===p; })[0];
+      if (!c){ toast('بيانات الدخول غير صحيحة'); return; }
+      if (c.status==='pending'){ toast('حسابكِ قيد المراجعة من قبل الإدارة'); return; }
+      if (c.status==='disabled'){ toast('تم تعطيل هذا الحساب من قبل الإدارة'); return; }
+      S.setSession({ role:'center', id:c.id });
+      renderApp();
+    };
+  }
+
+  function renderApp(){
+    var center = currentCenter();
+    if (!center){ renderLogin(); return; }
+    var app = document.getElementById('app');
+    app.innerHTML =
+      '<div class="gs-topbar"><div class="gs-logo">✨ GlowSpot<span>'+esc(center.name)+'</span></div>'+
+      '<button class="gs-btn gs-btn-sm" style="background:rgba(255,255,255,.2);color:#fff" id="logoutBtn">خروج</button></div>'+
+      '<div class="gs-navlinks">'+
+        navBtn('overview','نظرة عامة')+ navBtn('info','بيانات المركز')+ navBtn('team','الفريق')+
+        navBtn('packages','الباقات')+ navBtn('bookings','الحجوزات')+
+      '</div>'+
+      '<div id="tabContent" class="gs-container"></div>';
+    document.getElementById('logoutBtn').onclick = function(){ S.clearSession('center'); renderLogin(); };
+    Array.prototype.forEach.call(document.querySelectorAll('.gs-navlinks button'), function(b){
+      b.onclick = function(){ state.tab=b.dataset.tab; renderApp(); };
+    });
+    renderTab(center);
+  }
+  function navBtn(tab,label){ return '<button class="'+(state.tab===tab?'active':'')+'" data-tab="'+tab+'">'+label+'</button>'; }
+
+  function renderTab(center){
+    var c = document.getElementById('tabContent');
+    if (state.tab==='overview') c.innerHTML = renderOverview(center);
+    else if (state.tab==='info') c.innerHTML = renderInfo(center);
+    else if (state.tab==='team') c.innerHTML = renderTeam(center);
+    else if (state.tab==='packages') c.innerHTML = renderPackages(center);
+    else if (state.tab==='bookings') c.innerHTML = renderBookings(center);
+    bindEvents(center);
+  }
+
+  /* ---------------- OVERVIEW ---------------- */
+  function renderOverview(center){
+    var bookings = S.getAll(S.KEYS.bookings).filter(function(b){ return b.centerId===center.id; });
+    var experts = S.getAll(S.KEYS.experts).filter(function(e){ return e.centerId===center.id; });
+    var revenue = bookings.filter(function(b){ return b.status==='completed'; }).reduce(function(a,b){ return a+(b.price||0); },0);
+    var pending = bookings.filter(function(b){ return b.status==='pending'; }).length;
+    return '<div class="gs-section-title">نظرة عامة</div>'+
+      '<div class="gs-stat-grid">'+
+      stat(bookings.length,'إجمالي الحجوزات')+ stat(pending,'بانتظار التأكيد')+
+      stat(experts.length,'عدد الخبيرات')+ stat(revenue+' د.أ','الإيرادات المكتملة')+
+      '</div>'+
+      '<div class="gs-section-title">حالة الحساب</div>'+
+      '<div class="gs-card">الحالة: <span class="gs-badge gs-badge-'+(center.status==='approved'?'completed':'pending')+'">'+
+      (center.status==='approved'?'مفعّل':(center.status==='pending'?'قيد المراجعة':'معطّل'))+'</span>'+
+      (center.verified? ' &nbsp; <span class="gs-badge gs-badge-confirmed">موثّق ✓</span>':'')+
+      ' &nbsp; المشاهدات: '+(center.views||0)+'</div>';
+  }
+  function stat(num,lbl){ return '<div class="gs-stat"><div class="num">'+num+'</div><div class="lbl">'+lbl+'</div></div>'; }
+
+  /* ---------------- INFO ---------------- */
+  function renderInfo(center){
+    var deptRows = S.DEPARTMENTS.map(function(d){
+      var active = (center.departments||[]).indexOf(d.id)!==-1;
+      var pay = (center.paymentMethods||{})[d.id] || 'cash';
+      return '<div class="gs-dept-toggle"><div><b>'+d.name+'</b>'+
+        (active ? '<div style="margin-top:4px"><select class="gs-select" style="width:auto;display:inline-block;padding:4px 8px;font-size:12px" data-pay="'+d.id+'">'+
+          '<option value="cash" '+(pay==='cash'?'selected':'')+'>كاش فقط</option>'+
+          '<option value="both" '+(pay==='both'?'selected':'')+'>كاش وبطاقة</option></select></div>' : '')+
+        '</div><div class="gs-switch '+(active?'on':'')+'" data-deptswitch="'+d.id+'"><div class="knob"></div></div></div>';
+    }).join('');
+
+    return '<div class="gs-section-title">بيانات المركز</div>'+
+      '<div class="gs-card">'+
+      field('اسم المركز','infoName',center.name)+
+      field('المدينة','infoCity',center.city)+
+      field('الموقع','infoLoc',center.location)+
+      '<div class="gs-field"><label>نبذة عن المركز</label><textarea class="gs-textarea" id="infoAbout" rows="3">'+esc(center.about||'')+'</textarea></div>'+
+      '<div class="gs-dept-toggle"><b>الخدمة المنزلية</b><div class="gs-switch '+(center.homeService?'on':'')+'" id="homeServiceSwitch"><div class="knob"></div></div></div>'+
+      '<button class="gs-btn gs-btn-primary gs-btn-block" id="saveInfo" style="margin-top:14px">حفظ التعديلات</button>'+
+      '</div>'+
+      '<div class="gs-section-title">الأقسام وطرق الدفع</div>'+
+      '<div class="gs-card">'+deptRows+'</div>';
+  }
+  function field(label,id,val){
+    return '<div class="gs-field"><label>'+label+'</label><input class="gs-input" id="'+id+'" value="'+esc(val||'')+'"></div>';
+  }
+
+  /* ---------------- TEAM ---------------- */
+  function renderTeam(center){
+    var experts = S.getAll(S.KEYS.experts).filter(function(e){ return e.centerId===center.id; });
+    var rows = experts.map(function(e){
+      return '<div class="gs-card" style="margin-bottom:10px"><div class="gs-flex-between"><b>'+esc(e.name)+'</b>'+
+        '<span class="gs-badge '+(e.available!==false?'gs-badge-completed':'gs-badge-cancelled')+'">'+(e.available!==false?'متاحة':'غير متاحة')+'</span></div>'+
+        '<div style="font-size:12.5px;color:var(--gs-muted)">'+S.deptName(e.department)+' · '+esc(e.specialty||'')+' · '+esc(e.phone||'')+'</div>'+
+        '<div style="margin-top:8px;display:flex;gap:8px">'+
+        '<button class="gs-btn gs-btn-sm gs-btn-outline" data-editexpert="'+e.id+'">تعديل</button>'+
+        '<button class="gs-btn gs-btn-sm gs-btn-danger" data-delexpert="'+e.id+'">حذف</button></div></div>';
+    }).join('') || '<div class="gs-empty">لا يوجد أعضاء فريق بعد</div>';
+    return '<div class="gs-section-title">الفريق<button class="gs-btn gs-btn-sm gs-btn-primary" id="addExpertBtn">+ إضافة خبيرة</button></div>'+ rows;
+  }
+
+  function expertFormHtml(e){
+    e = e || {};
+    var deptOptions = S.DEPARTMENTS.map(function(d){ return '<option value="'+d.id+'" '+(e.department===d.id?'selected':'')+'>'+d.name+'</option>'; }).join('');
+    return field('الاسم','expName',e.name)+
+      '<div class="gs-field"><label>القسم</label><select class="gs-select" id="expDept">'+deptOptions+'</select></div>'+
+      field('التخصص','expSpecialty',e.specialty)+
+      field('رقم الهاتف (تسجيل الدخول)','expPhone',e.phone)+
+      field('كلمة المرور','expPass',e.password || 'expert123')+
+      '<div class="gs-field"><label>الخدمات (مثال: قص شعر=15=45)</label><textarea class="gs-textarea" id="expServices" rows="3" placeholder="اسم الخدمة=السعر=المدة بالدقائق، كل خدمة بسطر">'+
+      Object.keys(e.servicePrices||{}).map(function(s){ return s+'='+e.servicePrices[s]+'='+(e.serviceDurations?e.serviceDurations[s]:30); }).join('\n')+'</textarea></div>';
+  }
+
+  function parseServices(text){
+    var prices={}, durations={};
+    text.split('\n').forEach(function(line){
+      line = line.trim();
+      if (!line) return;
+      var parts = line.split('=');
+      if (parts.length>=2){
+        prices[parts[0].trim()] = parseFloat(parts[1])||0;
+        durations[parts[0].trim()] = parts[2]? parseInt(parts[2],10) : 30;
+      }
+    });
+    return { prices:prices, durations:durations };
+  }
+
+  function openExpertModal(center, expert){
+    showModal(expert? 'تعديل الخبيرة' : 'إضافة خبيرة جديدة',
+      expertFormHtml(expert) + '<button class="gs-btn gs-btn-primary gs-btn-block" id="saveExpert" style="margin-top:10px">حفظ</button>');
+    document.getElementById('saveExpert').onclick = function(){
+      var name = document.getElementById('expName').value.trim();
+      var phone = document.getElementById('expPhone').value.trim();
+      if (!name || !phone){ toast('يرجى تعبئة الاسم ورقم الهاتف'); return; }
+      var parsed = parseServices(document.getElementById('expServices').value);
+      var data = {
+        centerId: center.id,
+        name: name,
+        department: document.getElementById('expDept').value,
+        specialty: document.getElementById('expSpecialty').value.trim(),
+        phone: phone,
+        password: document.getElementById('expPass').value || 'expert123',
+        servicePrices: parsed.prices,
+        serviceDurations: parsed.durations
+      };
+      if (expert){
+        S.update(S.KEYS.experts, expert.id, data);
+      } else {
+        S.add(S.KEYS.experts, Object.assign({ rating:0, available:true, workingHours:{}, leaveRequests:[], clientNotes:{} }, data));
+      }
+      closeModal(); toast('تم الحفظ'); renderTab(center);
+    };
+  }
+
+  /* ---------------- PACKAGES ---------------- */
+  function renderPackages(center){
+    var packages = S.getAll(S.KEYS.packages).filter(function(p){ return p.centerId===center.id; });
+    var rows = packages.map(function(p){
+      return '<div class="gs-card" style="margin-bottom:10px"><div class="gs-flex-between"><b>'+esc(p.name)+'</b><span>'+p.price+' د.أ</span></div>'+
+        '<div style="font-size:12.5px;color:var(--gs-muted)">'+(p.items||[]).join(' + ')+'</div>'+
+        '<div style="margin-top:8px;display:flex;gap:8px">'+
+        '<button class="gs-btn gs-btn-sm gs-btn-outline" data-editpkg="'+p.id+'">تعديل</button>'+
+        '<button class="gs-btn gs-btn-sm gs-btn-danger" data-delpkg="'+p.id+'">حذف</button></div></div>';
+    }).join('') || '<div class="gs-empty">لا توجد باقات بعد</div>';
+    return '<div class="gs-section-title">الباقات<button class="gs-btn gs-btn-sm gs-btn-primary" id="addPkgBtn">+ إضافة باقة</button></div>'+ rows;
+  }
+  function pkgFormHtml(p){
+    p = p||{};
+    return field('اسم الباقة','pkgName',p.name)+
+      '<div class="gs-field"><label>محتويات الباقة (افصلي بفاصلة)</label><input class="gs-input" id="pkgItems" value="'+esc((p.items||[]).join('، '))+'"></div>'+
+      field('السعر','pkgPrice',p.price);
+  }
+  function openPkgModal(center, pkg){
+    showModal(pkg?'تعديل الباقة':'إضافة باقة', pkgFormHtml(pkg)+'<button class="gs-btn gs-btn-primary gs-btn-block" id="savePkg" style="margin-top:10px">حفظ</button>');
+    document.getElementById('savePkg').onclick = function(){
+      var name = document.getElementById('pkgName').value.trim();
+      var items = document.getElementById('pkgItems').value.split(/[،,]/).map(function(x){return x.trim();}).filter(Boolean);
+      var price = parseFloat(document.getElementById('pkgPrice').value)||0;
+      if (!name || !items.length){ toast('يرجى تعبئة جميع الحقول'); return; }
+      if (pkg) S.update(S.KEYS.packages, pkg.id, { name:name, items:items, price:price });
+      else S.add(S.KEYS.packages, { centerId:center.id, name:name, items:items, price:price });
+      closeModal(); toast('تم الحفظ'); renderTab(center);
+    };
+  }
+
+  /* ---------------- BOOKINGS ---------------- */
+  function renderBookings(center){
+    var bookings = S.getAll(S.KEYS.bookings).filter(function(b){ return b.centerId===center.id; })
+      .sort(function(a,b){ return (b.date+b.time).localeCompare(a.date+a.time); });
+    var experts = S.getAll(S.KEYS.experts).filter(function(e){ return e.centerId===center.id; });
+    var rows = bookings.map(function(b){
+      var needsAssign = !b.expertId && (b.status==='pending');
+      return '<div class="gs-card" style="margin-bottom:10px"><div class="gs-flex-between"><b>'+esc(b.service)+'</b><span class="gs-badge gs-badge-'+b.status+'">'+statusLabel(b.status)+'</span></div>'+
+        '<div style="font-size:12.5px;color:var(--gs-muted)">'+esc(b.customerName)+' · '+esc(b.phone)+'</div>'+
+        '<div style="font-size:13px;margin-top:4px">📅 '+b.date+' ⏰ '+b.time+' · 💰 '+b.price+' د.أ</div>'+
+        '<div style="font-size:12.5px;color:var(--gs-muted)">الخبيرة: '+esc(b.expertName||'—')+'</div>'+
+        (needsAssign ? '<div style="margin-top:8px"><select class="gs-select" data-assign="'+b.id+'"><option value="">تعيين خبيرة...</option>'+
+          experts.map(function(e){return '<option value="'+e.id+'">'+esc(e.name)+'</option>';}).join('')+'</select></div>' : '')+
+        '</div>';
+    }).join('') || '<div class="gs-empty">لا توجد حجوزات بعد</div>';
+    return '<div class="gs-section-title">الحجوزات</div>'+ rows;
+  }
+
+  /* ---------------- EVENTS ---------------- */
+  function bindEvents(center){
+    if (state.tab==='info'){
+      Array.prototype.forEach.call(document.querySelectorAll('[data-deptswitch]'), function(el){
+        el.onclick = function(){
+          var d = el.dataset.deptswitch;
+          var depts = center.departments||[];
+          if (depts.indexOf(d)!==-1) depts = depts.filter(function(x){return x!==d;});
+          else depts.push(d);
+          S.update(S.KEYS.centers, center.id, { departments:depts });
+          renderTab(S.getById(S.KEYS.centers,center.id));
+        };
+      });
+      var hs = document.getElementById('homeServiceSwitch');
+      if (hs) hs.onclick = function(){ S.update(S.KEYS.centers, center.id, { homeService: !center.homeService }); renderTab(S.getById(S.KEYS.centers,center.id)); };
+      Array.prototype.forEach.call(document.querySelectorAll('[data-pay]'), function(el){
+        el.onchange = function(){
+          var pm = Object.assign({}, center.paymentMethods||{});
+          pm[el.dataset.pay] = el.value;
+          S.update(S.KEYS.centers, center.id, { paymentMethods: pm });
+          center.paymentMethods = pm;
+        };
+      });
+      var saveBtn = document.getElementById('saveInfo');
+      if (saveBtn) saveBtn.onclick = function(){
+        S.update(S.KEYS.centers, center.id, {
+          name: document.getElementById('infoName').value.trim(),
+          city: document.getElementById('infoCity').value.trim(),
+          location: document.getElementById('infoLoc').value.trim(),
+          about: document.getElementById('infoAbout').value.trim()
+        });
+        toast('تم حفظ البيانات');
+        renderApp();
+      };
+    }
+    if (state.tab==='team'){
+      document.getElementById('addExpertBtn').onclick = function(){ openExpertModal(center, null); };
+      Array.prototype.forEach.call(document.querySelectorAll('[data-editexpert]'), function(el){
+        el.onclick = function(){ openExpertModal(center, S.getById(S.KEYS.experts, el.dataset.editexpert)); };
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-delexpert]'), function(el){
+        el.onclick = function(){ if(confirm('حذف هذه الخبيرة؟')){ S.remove(S.KEYS.experts, el.dataset.delexpert); renderTab(center); } };
+      });
+    }
+    if (state.tab==='packages'){
+      document.getElementById('addPkgBtn').onclick = function(){ openPkgModal(center, null); };
+      Array.prototype.forEach.call(document.querySelectorAll('[data-editpkg]'), function(el){
+        el.onclick = function(){ openPkgModal(center, S.getById(S.KEYS.packages, el.dataset.editpkg)); };
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-delpkg]'), function(el){
+        el.onclick = function(){ if(confirm('حذف هذه الباقة؟')){ S.remove(S.KEYS.packages, el.dataset.delpkg); renderTab(center); } };
+      });
+    }
+    if (state.tab==='bookings'){
+      Array.prototype.forEach.call(document.querySelectorAll('[data-assign]'), function(el){
+        el.onchange = function(){
+          if (!el.value) return;
+          var e = S.getById(S.KEYS.experts, el.value);
+          S.update(S.KEYS.bookings, el.dataset.assign, { expertId:e.id, expertName:e.name });
+          toast('تم تعيين الخبيرة');
+          renderTab(center);
+        };
+      });
+    }
+  }
+
+  function showModal(title, bodyHtml){
+    document.getElementById('modalRoot').innerHTML =
+      '<div class="gs-modal-backdrop" id="modalBackdrop"><div class="gs-modal">'+
+      '<span class="gs-close" id="modalClose">✕</span><h3>'+esc(title)+'</h3>'+bodyHtml+'</div></div>';
+    document.getElementById('modalClose').onclick = closeModal;
+    document.getElementById('modalBackdrop').onclick = function(e){ if(e.target.id==='modalBackdrop') closeModal(); };
+  }
+  function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+
+  renderApp();
+})();
+</script>
+</body>
+</html>
