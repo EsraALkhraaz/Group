@@ -1,0 +1,13 @@
+name: GlowSpot keepalive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping GlowSpot server
+        run: curl -sf https://glowspot-server.onrender.com/api/health || true
