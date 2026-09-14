@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GlowHub — اكتشفي مراكز الجمال</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&family=Playfair+Display:wght@700;800&display=swap');
+
+:root{
+  --maroon:#A47551;
+  --maroon-dark:#7C5A3D;
+  --rose:#D9BFA3;
+  --gold:#C9A227;
+  --blush:#F8F1E7;
+  --card:#FFFFFF;
+  --ink:#4A3B2A;
+  --muted:#9C8A76;
+  --line:#EDE0CE;
+  --busy:#C2A98C;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--blush);color:var(--ink);font-family:'Tajawal',sans-serif;min-height:100vh;}
+h1,h2,h3,.brand,.name{font-family:'Cairo',sans-serif;}
+.app{max-width:480px;margin:0 auto;min-height:100vh;background:var(--blush);position:relative;padding-bottom:32px;}
+
+header{
+  background:linear-gradient(135deg,var(--maroon) 0%,var(--maroon-dark) 100%);
+  color:#fff;padding:20px 20px 22px;border-radius:0 0 26px 26px;position:relative;overflow:hidden;
+}
+header::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 85% -10%, rgba(201,162,39,0.35), transparent 55%);pointer-events:none;}
+.brand{font-family:'Playfair Display',serif;font-size:25px;font-weight:800;margin:0;position:relative;letter-spacing:.01em;}
+.brand-sub{font-size:12.5px;color:#F7EEDF;margin-top:3px;position:relative;opacity:.9;}
+
+.role-toggle{display:flex;background:rgba(255,255,255,0.16);border-radius:14px;padding:4px;margin-top:14px;position:relative;}
+.role-toggle button{flex:1;padding:10px 6px;border:none;background:transparent;color:#F5E9D6;font-family:'Tajawal',sans-serif;font-weight:700;font-size:13.5px;border-radius:11px;cursor:pointer;transition:all .25s ease;}
+.role-toggle button.active{background:var(--gold);color:var(--maroon-dark);}
+
+main{padding:16px 16px 4px;}
+section{display:none;}
+section.visible{display:block;}
+.hidden{display:none !important;}
+
+.section-title{font-size:15.5px;font-weight:800;margin:6px 2px 12px;color:var(--maroon-dark);}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--rose);margin:0 2px 4px;text-transform:uppercase;}
+
+/* search + city chips */
+.search-box{position:relative;margin-bottom:12px;}
+.search-box input{width:100%;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;font-family:'Tajawal',sans-serif;font-size:14px;background:#fff;}
+.city-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:16px;}
+.city-chip{flex-shrink:0;border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink);}
+.city-chip.active{background:var(--maroon);border-color:var(--maroon);color:#fff;}
+
+/* center card */
+.center-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 2px 10px rgba(107,31,53,0.05);cursor:pointer;}
+.center-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.center-name{font-size:16px;font-weight:800;margin:0;}
+.verified{color:var(--gold);font-size:12px;font-weight:700;margin-inline-start:4px;}
+.rating{font-size:12.5px;font-weight:700;color:#8B6B3D;background:#F3E6D3;padding:2px 9px;border-radius:20px;white-space:nowrap;}
+.center-loc{font-size:12.5px;color:var(--muted);margin-top:4px;}
+.dept-row{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+.dept-pill{font-size:11.5px;background:var(--line);color:var(--maroon-dark);padding:4px 9px;border-radius:20px;font-weight:700;}
+.view-link{font-size:12.5px;font-weight:700;color:var(--maroon);margin-top:10px;display:inline-block;}
+
+/* back bar */
+.back-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;color:var(--maroon-dark);font-weight:700;font-size:13.5px;}
+
+/* center detail */
+.detail-header{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:16px;}
+.detail-header .center-name{font-size:19px;}
+.about-text{font-size:13px;color:var(--ink);line-height:1.7;margin-top:10px;}
+.book-cta{width:100%;margin-top:14px;border:none;background:var(--maroon);color:#fff;font-family:'Cairo',sans-serif;font-weight:700;font-size:15px;padding:13px;border-radius:14px;cursor:pointer;}
+.dept-filter{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+.dept-filter .dept-pill{
+  display:flex;align-items:center;gap:12px;
+  background:linear-gradient(135deg,var(--rose), var(--maroon));
+  color:#fff;border-radius:18px;padding:16px 18px;font-size:14.5px;font-weight:800;
+  cursor:pointer;border:2px solid transparent;flex-shrink:1;
+}
+.dept-filter .dept-pill.active{border-color:var(--gold);box-shadow:0 4px 14px rgba(124,90,61,0.25);}
+
+.package-card{background:linear-gradient(135deg,#fff, #F7EEDF);border:1px solid var(--line);border-radius:16px;padding:13px 14px;margin-bottom:10px;}
+.package-top{display:flex;justify-content:space-between;align-items:center;}
+.package-name{font-weight:800;font-size:14.5px;color:var(--maroon-dark);}
+.package-price{font-weight:800;font-size:14px;color:var(--gold);background:#fff;padding:3px 10px;border-radius:10px;}
+.package-items{font-size:12px;color:var(--muted);margin-top:5px;}
+.package-btn{margin-top:10px;border:none;background:var(--rose);color:#fff;font-weight:700;font-size:12.5px;padding:8px 12px;border-radius:10px;cursor:pointer;}
+
+.expert-group-label{font-size:13px;font-weight:800;color:var(--maroon-dark);margin:14px 2px 8px;}
+.expert-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:11px;}
+.avatar{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cairo',sans-serif;font-weight:800;font-size:17px;color:#fff;flex-shrink:0;position:relative;}
+.pulse-dot{position:absolute;bottom:-1px;left:-1px;width:13px;height:13px;border-radius:50%;border:2.5px solid var(--card);background:var(--busy);}
+.pulse-dot.free{background:var(--gold);}
+.pulse-dot.free::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:2px solid var(--gold);opacity:.6;animation:pulse 1.8s ease-out infinite;}
+@keyframes pulse{0%{transform:scale(0.6);opacity:.7;}100%{transform:scale(1.9);opacity:0;}}
+@media (prefers-reduced-motion: reduce){.pulse-dot.free::after{animation:none;}}
+.expert-info{flex:1;min-width:0;}
+.expert-name{font-size:14.5px;font-weight:700;}
+.expert-spec{font-size:12px;color:var(--muted);margin-top:2px;}
+.expert-rating{font-size:11.5px;color:#8B6B3D;font-weight:700;margin-top:2px;}
+.expert-book-btn{border:none;background:var(--maroon);color:#fff;font-weight:700;font-size:12.5px;padding:8px 12px;border-radius:11px;cursor:pointer;flex-shrink:0;}
+
+.empty-state{text-align:center;padding:26px 10px;color:var(--muted);font-size:13px;}
+.loading{text-align:center;padding:40px 0;color:var(--muted);font-size:13px;}
+
+/* booking overlay */
+.overlay{position:fixed;inset:0;background:rgba(43,22,32,0.55);display:none;align-items:flex-end;justify-content:center;z-index:60;}
+.overlay.visible{display:flex;}
+.sheet{background:var(--blush);width:100%;max-width:480px;border-radius:24px 24px 0 0;padding:20px 18px 24px;max-height:90vh;overflow-y:auto;position:relative;}
+.sheet h3{margin:0 0 4px;font-size:16.5px;color:var(--maroon-dark);}
+.sheet .sub{font-size:12px;color:var(--muted);margin-bottom:12px;}
+.close-x{position:absolute;left:16px;top:14px;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;}
+.step-label{font-size:12px;font-weight:700;color:var(--muted);margin:12px 2px 6px;}
+.chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
+.pick-chip{border:1.5px solid var(--line);background:#fff;border-radius:13px;padding:8px 13px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ink);}
+.pick-chip.active{background:var(--gold);border-color:var(--gold);color:#fff;}
+
+.expert-pick-row{display:flex;gap:16px;overflow-x:auto;padding:2px 2px 8px;}
+.expert-pick-item{flex-shrink:0;text-align:center;cursor:pointer;width:62px;}
+.expert-pick-avatar{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cairo',sans-serif;font-weight:800;font-size:19px;color:#fff;margin:0 auto;border:3px solid transparent;}
+.expert-pick-item.active .expert-pick-avatar{border-color:var(--gold);}
+.expert-pick-name{font-size:11.5px;font-weight:700;margin-top:6px;color:var(--ink);}
+.expert-pick-stars{font-size:10px;color:var(--gold);margin-top:2px;letter-spacing:1px;}
+.day-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;}
+.day-chip{flex-shrink:0;text-align:center;cursor:pointer;min-width:46px;}
+.day-num{width:42px;height:42px;border-radius:50%;background:#fff;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:var(--ink);margin:0 auto;}
+.day-chip.active .day-num{background:var(--maroon);border-color:var(--maroon);color:#fff;}
+.day-chip .d{display:block;font-size:10.5px;color:var(--muted);font-weight:600;margin-top:5px;}
+.slot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;}
+.slot{aspect-ratio:1/1;border-radius:50%;border:1.5px solid var(--line);background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;}
+.slot-hour{font-size:14px;font-weight:800;color:var(--ink);line-height:1;}
+.slot-ampm{font-size:9px;color:var(--muted);margin-top:2px;}
+.slot.taken{opacity:.35;cursor:not-allowed;}
+.slot.active{background:var(--maroon);border-color:var(--maroon);}
+.slot.active .slot-hour,.slot.active .slot-ampm{color:#fff;}
+.note{font-size:12px;color:var(--muted);padding:6px 2px;}
+
+label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:10px 2px 5px;}
+input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;font-family:'Tajawal',sans-serif;font-size:13.5px;background:#fff;color:var(--ink);}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-color:var(--gold);}
+.confirm-btn{width:100%;margin-top:16px;border:none;background:var(--maroon);color:#fff;font-family:'Cairo',sans-serif;font-weight:700;font-size:15px;padding:13px;border-radius:14px;cursor:pointer;}
+.confirm-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+/* dashboard */
+.dash-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:15px;margin-bottom:14px;}
+.dash-card h4{margin:0 0 10px;font-size:14px;font-weight:800;color:var(--maroon-dark);}
+.toggle-pill{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:#fff;border-radius:13px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;margin:0 4px 8px 0;color:var(--ink);}
+.toggle-pill.active{background:var(--maroon);border-color:var(--maroon);color:#fff;}
+.list-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
+.list-row:last-child{border-bottom:none;}
+.list-row .main{flex:1;min-width:0;}
+.list-row .main .t1{font-weight:700;font-size:13.5px;}
+.list-row .main .t2{font-size:11.5px;color:var(--muted);margin-top:1px;}
+.mini-switch{width:40px;height:22px;border-radius:20px;background:var(--line);position:relative;cursor:pointer;flex-shrink:0;transition:background .2s;}
+.mini-switch.on{background:var(--gold);}
+.mini-switch::after{content:"";position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s;}
+.mini-switch.on::after{transform:translateX(-18px);}
+.icon-btn{background:none;border:none;color:var(--busy);font-size:12.5px;font-weight:700;cursor:pointer;flex-shrink:0;}
+.add-form input,.add-form select,.add-form textarea{margin-bottom:8px;}
+.add-form button{border:none;background:var(--rose);color:#fff;font-weight:700;font-size:13px;padding:9px 14px;border-radius:10px;cursor:pointer;width:100%;margin-top:2px;}
+.dash-select{margin-bottom:16px;}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--maroon-dark);color:#fff;padding:12px 20px;border-radius:14px;font-size:13.5px;font-weight:700;z-index:100;opacity:0;pointer-events:none;transition:opacity .3s, bottom .3s;box-shadow:0 6px 20px rgba(0,0,0,0.25);}
+.toast.show{opacity:1;bottom:34px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <p class="brand">GlowHub</p>
+    <p class="brand-sub">اكتشفي مركز الجمال المناسب لكِ واحجزي بسهولة</p>
+    <div class="role-toggle">
+      <button id="tabCustomer" class="active">أنا عميلة</button>
+      <button id="tabDash">لوحة تحكم المركز</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- CUSTOMER: HOME -->
+    <section id="viewHome" class="visible">
+      <div class="search-box">
+        <input id="searchInput" placeholder="ابحثي عن مركز، خدمة، أو مدينة">
+      </div>
+      <button class="book-cta" id="quickBookBtn" style="margin-bottom:16px;">⚡ حجز سريع — دعينا نقترح عليك</button>
+      <div class="city-scroll" id="cityScroll"></div>
+      <p class="section-title">مراكز قريبة منك</p>
+      <div id="centerList"><div class="loading">جارِ التحميل…</div></div>
+    </section>
+
+    <!-- CUSTOMER: CENTER DETAIL -->
+    <section id="viewCenterDetail">
+      <div class="back-bar" id="backToHome">→ رجوع</div>
+      <div id="centerDetailBody"></div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section id="viewDash">
+      <label>المركز الذي تديرينه</label>
+      <select id="dashCenterSelect" class="dash-select"></select>
+
+      <div class="dash-card" id="dashNewCenterCard">
+        <h4>إنشاء مركز جديد</h4>
+        <div class="add-form">
+          <input id="newCenterName" placeholder="اسم المركز">
+          <input id="newCenterCity" placeholder="المدينة (مثال: بنغازي)">
+          <input id="newCenterLocation" placeholder="الموقع (مثال: الفويهات)">
+          <textarea id="newCenterAbout" rows="2" placeholder="نبذة عن المركز"></textarea>
+          <button id="createCenterBtn">إنشاء المركز</button>
+        </div>
+      </div>
+
+      <div id="dashEditArea"></div>
+    </section>
+  </main>
+</div>
+
+<div class="overlay" id="bookOverlay">
+  <div class="sheet" id="sheetContainer">
+    <button class="close-x" id="closeSheet">✕</button>
+    <div id="sheetContent"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS = ['#6B1F35','#C98CA7','#C9A227','#8C5B70','#9B3B49','#4E1526'];
+const WEEKDAYS = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const START_HOUR = 10, END_HOUR = 19;
+
+const DEPARTMENTS = {
+  hair:   {ar:'شعر',           icon:'💇', services:['تصفيف شعر','صبغة شعر','علاج الشعر','تسريحة عروس']},
+  makeup: {ar:'مكياج',          icon:'💄', services:['مكياج خفيف','مكياج كامل','مكياج عروس']},
+  nails:  {ar:'أظافر',          icon:'💅', services:['مانيكير','باديكير','جل','نيل آرت']},
+  henna:  {ar:'حنة',            icon:'🌿', services:['حنة عروس','حنة يدين','حنة أرجل','نقشة عصرية']},
+  spa:    {ar:'سبا',            icon:'💆', services:['مساج','مساج استرخاء','عناية بالجسم']},
+  steam:  {ar:'حمام بخار',      icon:'🧖', services:['حمام بخار','حمام تركي','تقشير الجسم']},
+  beauty: {ar:'عناية وجمال',    icon:'👁️', services:['رموش','حواجب','فيشل','عناية بالبشرة']}
+};
+
+let centers = [];
+let experts = [];
+let packages = [];
+let bookings = [];
+
+let activeCity = 'الكل';
+let searchQuery = '';
+let currentCenterId = null;      // center being viewed by customer
+let activeDetailDept = 'all';    // department filter within center detail
+let dashCenterId = null;
+
+// booking sheet state
+let bk = {};
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function initial(name){ return name.trim().charAt(0); }
+function dateKey(d){ return d.toISOString().slice(0,10); }
+function starString(r){ const full = Math.round(r); return '★'.repeat(full) + '☆'.repeat(Math.max(0,5-full)); }
+
+/* ---------------- storage ---------------- */
+async function loadAll(){
+  centers  = await loadKey('centers', seedCenters());
+  experts  = await loadKey('experts', seedExperts());
+  packages = await loadKey('packages', seedPackages());
+  bookings = await loadKey('bookings', []);
+}
+async function loadKey(key, fallback){
+  try{
+    const r = await window.storage.get(key, true);
+    if(r) return JSON.parse(r.value);
+  }catch(e){}
+  await saveKey(key, fallback);
+  return fallback;
+}
+async function saveKey(key, value){
+  try{ await window.storage.set(key, JSON.stringify(value), true); }
+  catch(e){ toast('تعذر حفظ البيانات'); }
+}
+const saveCenters  = ()=> saveKey('centers', centers);
+const saveExperts  = ()=> saveKey('experts', experts);
+const savePackages = ()=> saveKey('packages', packages);
+const saveBookings = ()=> saveKey('bookings', bookings);
+
+function seedCenters(){
+  return [
+    {id:'c1', name:'Glow Beauty Center', city:'بنغازي', location:'الفويهات', about:'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified:true, rating:4.8, departments:['hair','makeup','nails','henna','spa']},
+    {id:'c2', name:'Royal Beauty Center', city:'بنغازي', location:'بن عاشور', about:'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified:true, rating:4.6, departments:['hair','beauty','steam']},
+    {id:'c3', name:'Luna Spa', city:'طرابلس', location:'حي الأندلس', about:'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified:false, rating:4.7, departments:['spa','steam','beauty']}
+  ];
+}
+function seedExperts(){
+  return [
+    {id:'e1', centerId:'c1', department:'hair',   name:'سارة', specialty:'تصفيف وصبغة الشعر', rating:4.9, available:true,  color:COLORS[0]},
+    {id:'e2', centerId:'c1', department:'makeup', name:'مايا', specialty:'مكياج سهرة وعرايس', rating:4.8, available:false, color:COLORS[1]},
+    {id:'e3', centerId:'c1', department:'nails',  name:'نورا', specialty:'جل ونيل آرت', rating:4.9, available:true,  color:COLORS[2]},
+    {id:'e7', centerId:'c1', department:'henna',  name:'آية',  specialty:'حنة عروس ونقشات عصرية', rating:4.9, available:true,  color:COLORS[5]},
+    {id:'e4', centerId:'c2', department:'hair',   name:'لينا', specialty:'قص واستشوار', rating:4.7, available:true,  color:COLORS[3]},
+    {id:'e5', centerId:'c2', department:'beauty', name:'هدى',  specialty:'فيشل وعناية بالبشرة', rating:4.8, available:false, color:COLORS[4]},
+    {id:'e6', centerId:'c3', department:'spa',    name:'أمل',  specialty:'مساج استرخاء', rating:4.9, available:true,  color:COLORS[5]}
+  ];
+}
+function seedPackages(){
+  return [
+    {id:'p1', centerId:'c1', name:'باقة العروس', items:'شعر + مكياج + أظافر', price:650},
+    {id:'p2', centerId:'c1', name:'يوم الجمال', items:'شعر + فيشل + مانيكير + باديكير', price:300}
+  ];
+}
+
+/* ---------------- HOME ---------------- */
+function renderCityChips(){
+  const cities = ['الكل', ...new Set(centers.map(c=>c.city))];
+  const wrap = document.getElementById('cityScroll');
+  wrap.innerHTML = cities.map(c=>`<div class="city-chip ${c===activeCity?'active':''}" data-city="${c}">${c}</div>`).join('');
+  wrap.querySelectorAll('.city-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      activeCity = chip.dataset.city;
+      renderCityChips();
+      renderCenterList();
+    });
+  });
+}
+
+function matchesSearch(center){
+  if(!searchQuery) return true;
+  const q = searchQuery.toLowerCase();
+  if(center.name.toLowerCase().includes(q)) return true;
+  if(center.city.toLowerCase().includes(q)) return true;
+  for(const d of center.departments){
+    if(DEPARTMENTS[d].ar.includes(q)) return true;
+    if(DEPARTMENTS[d].services.some(s=>s.toLowerCase().includes(q))) return true;
+  }
+  return false;
+}
+
+function renderCenterList(){
+  const wrap = document.getElementById('centerList');
+  const list = centers.filter(c => (activeCity==='الكل' || c.city===activeCity) && matchesSearch(c));
+  if(list.length===0){
+    wrap.innerHTML = '<div class="empty-state">لا توجد مراكز مطابقة لبحثك</div>';
+    return;
+  }
+  wrap.innerHTML = list.map(c=>`
+    <div class="center-card" data-id="${c.id}">
+      <div class="center-top">
+        <p class="center-name">${c.name}${c.verified?'<span class="verified">✓</span>':''}</p>
+        <span class="rating">⭐ ${c.rating.toFixed(1)}</span>
+      </div>
+      <p class="center-loc">📍 ${c.location}, ${c.city}</p>
+      <div class="dept-row">
+        ${c.departments.map(d=>`<span class="dept-pill">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</span>`).join('')}
+      </div>
+      <span class="view-link">عرض المركز ←</span>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.center-card').forEach(card=>{
+    card.addEventListener('click', ()=> openCenterDetail(card.dataset.id));
+  });
+}
+
+document.getElementById('searchInput').addEventListener('input', (e)=>{
+  searchQuery = e.target.value.trim();
+  renderCenterList();
+});
+
+/* ---------------- CENTER DETAIL ---------------- */
+function openCenterDetail(centerId){
+  currentCenterId = centerId;
+  activeDetailDept = 'all';
+  document.getElementById('viewHome').classList.remove('visible');
+  document.getElementById('viewCenterDetail').classList.add('visible');
+  renderCenterDetail();
+}
+document.getElementById('backToHome').addEventListener('click', ()=>{
+  document.getElementById('viewCenterDetail').classList.remove('visible');
+  document.getElementById('viewHome').classList.add('visible');
+});
+
+function renderCenterDetail(){
+  const c = centers.find(x=>x.id===currentCenterId);
+  if(!c) return;
+  const body = document.getElementById('centerDetailBody');
+  const centerPkgs = packages.filter(p=>p.centerId===c.id);
+  const centerExperts = experts.filter(e=>e.centerId===c.id);
+
+  body.innerHTML = `
+    <div class="detail-header">
+      <p class="center-name">${c.name}${c.verified?'<span class="verified">✓ موثّق</span>':''}</p>
+      <p class="center-loc">📍 ${c.location}, ${c.city} &nbsp;·&nbsp; <span class="rating">⭐ ${c.rating.toFixed(1)}</span></p>
+      <p class="about-text">${c.about || ''}</p>
+      <button class="book-cta" id="generalBookBtn">احجزي موعد</button>
+    </div>
+
+    ${centerPkgs.length ? `
+      <p class="section-title">الباقات</p>
+      ${centerPkgs.map(p=>`
+        <div class="package-card">
+          <div class="package-top">
+            <span class="package-name">${p.name}</span>
+            <span class="package-price">${p.price} د.ل</span>
+          </div>
+          <p class="package-items">${p.items}</p>
+          <button class="package-btn" data-id="${p.id}">احجزي هذه الباقة</button>
+        </div>
+      `).join('')}
+    ` : ''}
+
+    <p class="section-title">فريق العمل</p>
+    <div class="dept-filter" id="detailDeptFilter">
+      <span class="dept-pill ${activeDetailDept==='all'?'active':''}" data-d="all">الكل</span>
+      ${c.departments.map(d=>`<span class="dept-pill ${activeDetailDept===d?'active':''}" data-d="${d}">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</span>`).join('')}
+    </div>
+    <div id="expertGroups"></div>
+  `;
+
+  document.getElementById('generalBookBtn').addEventListener('click', ()=> openBooking({centerId:c.id, mode:'general'}));
+  body.querySelectorAll('.package-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const pkg = packages.find(p=>p.id===btn.dataset.id);
+      openBooking({centerId:c.id, mode:'package', pkg});
+    });
+  });
+  body.querySelectorAll('#detailDeptFilter .dept-pill').forEach(pill=>{
+    pill.addEventListener('click', ()=>{
+      activeDetailDept = pill.dataset.d;
+      renderCenterDetail();
+    });
+  });
+
+  const groupsWrap = document.getElementById('expertGroups');
+  const depts = activeDetailDept==='all' ? c.departments : [activeDetailDept];
+  let html = '';
+  depts.forEach(d=>{
+    const list = centerExperts.filter(e=>e.department===d);
+    if(list.length===0) return;
+    html += `<p class="expert-group-label">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar} — ${list.length} خبيرات</p>`;
+    html += list.map(e=>`
+      <div class="expert-card">
+        <div class="avatar" style="background:${e.color}">${initial(e.name)}<span class="pulse-dot ${e.available?'free':''}"></span></div>
+        <div class="expert-info">
+          <div class="expert-name">${e.name}</div>
+          <div class="expert-spec">${e.specialty}</div>
+          <div class="expert-rating">⭐ ${e.rating.toFixed(1)} ${e.available ? '· متفرغة الآن' : '· مشغولة حالياً'}</div>
+        </div>
+        <button class="expert-book-btn" data-id="${e.id}">حجز</button>
+      </div>
+    `).join('');
+  });
+  groupsWrap.innerHTML = html || '<div class="empty-state">لا توجد خبيرات في هذا القسم بعد</div>';
+  groupsWrap.querySelectorAll('.expert-book-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> openBooking({centerId:c.id, mode:'expert', expertId:btn.dataset.id}));
+  });
+}
+
+/* ---------------- BOOKING SHEET ---------------- */
+function openBooking({centerId, mode, expertId, pkg, department, deptLocked}){
+  bk = {centerId, mode, department:department||null, service:null, expertId:null, date:null, time:null, custName:'', custPhone:'', pkg:pkg||null, deptLocked:!!deptLocked};
+  if(mode==='expert'){
+    const ex = experts.find(x=>x.id===expertId);
+    bk.department = ex.department;
+    bk.expertId = ex.id;
+  }
+  document.getElementById('bookOverlay').classList.add('visible');
+  renderSheet();
+}
+document.getElementById('closeSheet').addEventListener('click', ()=>{
+  document.getElementById('bookOverlay').classList.remove('visible');
+});
+
+document.getElementById('quickBookBtn').addEventListener('click', openQuickPicker);
+
+function openQuickPicker(){
+  bk = {mode:'quick-picker'};
+  document.getElementById('bookOverlay').classList.add('visible');
+  const content = document.getElementById('sheetContent');
+  content.innerHTML = `
+    <h3>حجز سريع</h3>
+    <p class="sub">اختاري الخدمة التي تبحثين عنها، وسنقترح عليك أنسب مركز وخبيرة متاحة الآن</p>
+    <div class="chip-row" id="quickDeptChips">
+      ${Object.keys(DEPARTMENTS).map(d=>`<span class="pick-chip" data-d="${d}">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</span>`).join('')}
+    </div>
+  `;
+  content.querySelectorAll('#quickDeptChips .pick-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=> resolveQuickBooking(chip.dataset.d));
+  });
+}
+
+function resolveQuickBooking(department){
+  let pool = centers.filter(c=>c.departments.includes(department));
+  if(activeCity !== 'الكل'){
+    const inCity = pool.filter(c=>c.city===activeCity);
+    if(inCity.length) pool = inCity;
+  }
+  if(pool.length===0){
+    toast('لا يوجد مركز يقدّم هذه الخدمة حالياً');
+    return;
+  }
+  pool = pool.slice().sort((a,b)=> b.rating - a.rating);
+
+  let matchCenter = null, matchExpert = null;
+  for(const c of pool){
+    const avail = experts.find(e=>e.centerId===c.id && e.department===department && e.available);
+    if(avail){ matchCenter = c; matchExpert = avail; break; }
+  }
+  if(!matchCenter) matchCenter = pool[0];
+
+  document.getElementById('bookOverlay').classList.remove('visible');
+  if(matchExpert){
+    toast('اقترحنا لك: ' + matchCenter.name + ' — ' + matchExpert.name);
+    openBooking({centerId:matchCenter.id, mode:'expert', expertId:matchExpert.id});
+  } else {
+    toast('اقترحنا لك: ' + matchCenter.name + ' (اختاري الخبيرة المناسبة)');
+    openBooking({centerId:matchCenter.id, mode:'general', department, deptLocked:true});
+  }
+}
+
+function isSlotTaken(date, time){
+  if(bk.mode==='package') return false;
+  if(bk.expertId && bk.expertId !== 'any'){
+    return bookings.some(b=> b.expertId===bk.expertId && b.date===date && b.time===time && b.status!=='cancelled');
+  }
+  const deptExperts = experts.filter(e=>e.centerId===bk.centerId && e.department===bk.department);
+  if(deptExperts.length===0) return true;
+  return deptExperts.every(e => bookings.some(b=>b.expertId===e.id && b.date===date && b.time===time && b.status!=='cancelled'));
+}
+
+function renderSheet(){
+  const c = centers.find(x=>x.id===bk.centerId);
+  const content = document.getElementById('sheetContent');
+  let html = '';
+
+  if(bk.mode==='package'){
+    html += `<h3>حجز باقة: ${bk.pkg.name}</h3><p class="sub">${c.name} — ${bk.pkg.items} — ${bk.pkg.price} د.ل</p>`;
+  } else if(bk.mode==='expert'){
+    const ex = experts.find(x=>x.id===bk.expertId);
+    html += `<h3>حجز مع ${ex.name}</h3><p class="sub">${c.name} — ${DEPARTMENTS[ex.department].ar}</p>`;
+  } else {
+    html += `<h3>حجز موعد</h3><p class="sub">${c.name}</p>`;
+  }
+
+  // department step (general mode only)
+  if(bk.mode==='general' && !bk.deptLocked){
+    html += `<p class="step-label">اختاري القسم</p><div class="chip-row" id="deptChips">`;
+    html += c.departments.map(d=>`<span class="pick-chip ${bk.department===d?'active':''}" data-d="${d}">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</span>`).join('');
+    html += `</div>`;
+  } else if(bk.mode==='general' && bk.deptLocked && bk.department){
+    html += `<p class="step-label">القسم المقترح</p><div class="chip-row"><span class="pick-chip active">${DEPARTMENTS[bk.department].icon} ${DEPARTMENTS[bk.department].ar}</span></div>`;
+  }
+
+  // service step (general + expert modes, once department known)
+  if(bk.mode!=='package' && bk.department){
+    html += `<p class="step-label">اختاري الخدمة</p><div class="chip-row" id="serviceChips">`;
+    html += DEPARTMENTS[bk.department].services.map(s=>`<span class="pick-chip ${bk.service===s?'active':''}" data-s="${s}">${s}</span>`).join('');
+    html += `</div>`;
+  }
+
+  // expert step (general mode only, once service chosen)
+  if(bk.mode==='general' && bk.department && bk.service){
+    const deptExperts = experts.filter(e=>e.centerId===bk.centerId && e.department===bk.department);
+    html += `<p class="step-label">اختاري الخبيرة</p><div class="expert-pick-row" id="expertChips">`;
+    html += deptExperts.map(e=>`
+      <div class="expert-pick-item ${bk.expertId===e.id?'active':''}" data-e="${e.id}">
+        <div class="expert-pick-avatar" style="background:${e.color}">${initial(e.name)}</div>
+        <div class="expert-pick-name">${e.name}</div>
+        <div class="expert-pick-stars">${starString(e.rating)}</div>
+      </div>`).join('');
+    html += `
+      <div class="expert-pick-item ${bk.expertId==='any'?'active':''}" data-e="any">
+        <div class="expert-pick-avatar" style="background:var(--muted)">🤝</div>
+        <div class="expert-pick-name">أي خبيرة</div>
+      </div>`;
+    html += `</div>`;
+  }
+
+  // date/time — package: always show. others: once department+service+expert (or expertId set) are ready
+  const readyForDate = bk.mode==='package' || (bk.department && bk.service && bk.expertId);
+  if(readyForDate){
+    html += `<p class="step-label">التاريخ</p><div class="day-scroll" id="dayScroll"></div>`;
+    html += `<div class="slot-grid" id="slotGrid"></div>`;
+    html += `<label>الاسم</label><input id="custName" value="${bk.custName}" placeholder="اسمك الكامل">`;
+    html += `<label>رقم الهاتف</label><input id="custPhone" value="${bk.custPhone}" placeholder="09xxxxxxxx" type="tel">`;
+    html += `<button class="confirm-btn" id="confirmBtn" disabled>تأكيد الحجز</button>`;
+  }
+
+  content.innerHTML = html;
+  bindSheetEvents();
+  if(readyForDate){
+    renderDayScroll();
+    if(bk.date) renderSlotGrid(); else document.getElementById('slotGrid').innerHTML = '<div class="note">اختاري يوماً لعرض الأوقات المتاحة</div>';
+    updateConfirmState();
+  }
+}
+
+function bindSheetEvents(){
+  const deptChips = document.getElementById('deptChips');
+  if(deptChips) deptChips.querySelectorAll('.pick-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      bk.department = chip.dataset.d; bk.service=null; bk.expertId=null; bk.date=null; bk.time=null;
+      renderSheet();
+    });
+  });
+  const serviceChips = document.getElementById('serviceChips');
+  if(serviceChips) serviceChips.querySelectorAll('.pick-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      bk.service = chip.dataset.s; bk.date=null; bk.time=null;
+      if(bk.mode==='expert') { /* expert already fixed */ }
+      renderSheet();
+    });
+  });
+  const expertChips = document.getElementById('expertChips');
+  if(expertChips) expertChips.querySelectorAll('.expert-pick-item').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      bk.expertId = chip.dataset.e; bk.date=null; bk.time=null;
+      renderSheet();
+    });
+  });
+  const nameInput = document.getElementById('custName');
+  if(nameInput){
+    nameInput.addEventListener('input', e=>{ bk.custName = e.target.value; updateConfirmState(); });
+  }
+  const phoneInput = document.getElementById('custPhone');
+  if(phoneInput){
+    phoneInput.addEventListener('input', e=>{ bk.custPhone = e.target.value; updateConfirmState(); });
+  }
+  const confirmBtn = document.getElementById('confirmBtn');
+  if(confirmBtn) confirmBtn.addEventListener('click', confirmBooking);
+}
+
+function renderDayScroll(){
+  const scroll = document.getElementById('dayScroll');
+  const days = [];
+  const today = new Date();
+  for(let i=0;i<7;i++){ const d=new Date(today); d.setDate(today.getDate()+i); days.push(d); }
+  scroll.innerHTML = days.map((d,i)=>`
+    <div class="day-chip ${bk.date===dateKey(d)?'active':''}" data-key="${dateKey(d)}">
+      <span class="day-num">${d.getDate()}</span>
+      <span class="d">${i===0?'اليوم':WEEKDAYS[d.getDay()]}</span>
+    </div>`).join('');
+  scroll.querySelectorAll('.day-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      bk.date = chip.dataset.key; bk.time = null;
+      scroll.querySelectorAll('.day-chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      renderSlotGrid();
+      updateConfirmState();
+    });
+  });
+}
+
+function renderSlotGrid(){
+  const grid = document.getElementById('slotGrid');
+  if(!bk.date){ grid.innerHTML = '<div class="note">اختاري يوماً لعرض الأوقات المتاحة</div>'; return; }
+  let html = '';
+  for(let h=START_HOUR; h<=END_HOUR; h++){
+    const hour12 = h%12===0?12:h%12;
+    const ampm = h<12?'ص':'م';
+    const timeVal = String(h).padStart(2,'0')+':00';
+    const taken = isSlotTaken(bk.date, timeVal);
+    html += `<div class="slot ${taken?'taken':''} ${bk.time===timeVal?'active':''}" data-time="${timeVal}"><span class="slot-hour">${hour12}</span><span class="slot-ampm">${ampm}</span></div>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('.slot:not(.taken)').forEach(slot=>{
+    slot.addEventListener('click', ()=>{
+      bk.time = slot.dataset.time;
+      grid.querySelectorAll('.slot').forEach(s=>s.classList.remove('active'));
+      slot.classList.add('active');
+      updateConfirmState();
+    });
+  });
+}
+
+function updateConfirmState(){
+  const btn = document.getElementById('confirmBtn');
+  if(!btn) return;
+  const ok = bk.date && bk.time && bk.custName.trim() && bk.custPhone.trim();
+  btn.disabled = !ok;
+}
+
+async function confirmBooking(){
+  const c = centers.find(x=>x.id===bk.centerId);
+  let expertId = bk.expertId, expertName = '';
+  let department = bk.department, service = bk.service;
+
+  if(bk.mode==='package'){
+    department = 'package'; service = bk.pkg.name; expertId = null; expertName = '';
+  } else if(expertId === 'any'){
+    const deptExperts = experts.filter(e=>e.centerId===bk.centerId && e.department===bk.department);
+    const free = deptExperts.find(e => !bookings.some(b=>b.expertId===e.id && b.date===bk.date && b.time===bk.time && b.status!=='cancelled'));
+    if(free){ expertId = free.id; expertName = free.name; }
+    else { toast('عذراً، لا توجد خبيرة متاحة في هذا الوقت'); return; }
+  } else if(expertId){
+    const ex = experts.find(e=>e.id===expertId);
+    expertName = ex ? ex.name : '';
+  }
+
+  const booking = {
+    id: Date.now()+'-'+Math.random().toString(36).slice(2,7),
+    centerId: bk.centerId, centerName: c.name,
+    department, service,
+    expertId, expertName,
+    customerName: bk.custName.trim(), phone: bk.custPhone.trim(),
+    date: bk.date, time: bk.time, status:'confirmed'
+  };
+  bookings.push(booking);
+  await saveBookings();
+  document.getElementById('bookOverlay').classList.remove('visible');
+  toast('تم تأكيد حجزك في ' + c.name + ' ✓');
+  if(dashCenterId===bk.centerId) renderDashboard();
+}
+
+/* ---------------- DASHBOARD ---------------- */
+function renderDashSelect(){
+  const sel = document.getElementById('dashCenterSelect');
+  sel.innerHTML = centers.map(c=>`<option value="${c.id}">${c.name} — ${c.city}</option>`).join('');
+  if(dashCenterId) sel.value = dashCenterId;
+}
+document.getElementById('dashCenterSelect').addEventListener('change', e=>{
+  dashCenterId = e.target.value;
+  renderDashboard();
+});
+
+document.getElementById('createCenterBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('newCenterName').value.trim();
+  const city = document.getElementById('newCenterCity').value.trim();
+  const location = document.getElementById('newCenterLocation').value.trim();
+  const about = document.getElementById('newCenterAbout').value.trim();
+  if(!name || !city){ toast('يرجى إدخال اسم المركز والمدينة'); return; }
+  const c = {id:'c'+Date.now(), name, city, location, about, verified:false, rating:5.0, departments:[]};
+  centers.push(c);
+  await saveCenters();
+  dashCenterId = c.id;
+  document.getElementById('newCenterName').value='';
+  document.getElementById('newCenterCity').value='';
+  document.getElementById('newCenterLocation').value='';
+  document.getElementById('newCenterAbout').value='';
+  renderDashSelect();
+  renderDashboard();
+  renderCityChips();
+  renderCenterList();
+  toast('تم إنشاء المركز بنجاح');
+});
+
+function renderDashboard(){
+  const c = centers.find(x=>x.id===dashCenterId);
+  const area = document.getElementById('dashEditArea');
+  if(!c){ area.innerHTML=''; return; }
+
+  const myExperts = experts.filter(e=>e.centerId===c.id);
+  const myPackages = packages.filter(p=>p.centerId===c.id);
+  const myBookings = bookings.filter(b=>b.centerId===c.id && b.status!=='cancelled')
+    .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+
+  area.innerHTML = `
+    <div class="dash-card">
+      <h4>بيانات المركز</h4>
+      <label>الاسم</label><input id="editName" value="${c.name}">
+      <label>المدينة</label><input id="editCity" value="${c.city}">
+      <label>الموقع</label><input id="editLocation" value="${c.location}">
+      <label>نبذة عن المركز</label><textarea id="editAbout" rows="2">${c.about||''}</textarea>
+      <button class="confirm-btn" id="saveCenterInfo" style="margin-top:10px;">حفظ التعديلات</button>
+    </div>
+
+    <div class="dash-card">
+      <h4>الأقسام المتوفرة</h4>
+      <div id="deptToggles">
+        ${Object.keys(DEPARTMENTS).map(d=>`<span class="toggle-pill ${c.departments.includes(d)?'active':''}" data-d="${d}">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</span>`).join('')}
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <h4>فريق العمل (${myExperts.length})</h4>
+      <div id="expertsRows">
+        ${myExperts.map(e=>`
+          <div class="list-row">
+            <div class="avatar" style="width:36px;height:36px;font-size:14px;background:${e.color}">${initial(e.name)}</div>
+            <div class="main">
+              <div class="t1">${e.name}</div>
+              <div class="t2">${DEPARTMENTS[e.department].ar} · ${e.specialty} · ⭐ ${e.rating.toFixed(1)}</div>
+            </div>
+            <div class="mini-switch ${e.available?'on':''}" data-avail="${e.id}"></div>
+            <button class="icon-btn" data-remove-expert="${e.id}">حذف</button>
+          </div>
+        `).join('') || '<div class="empty-state">لا يوجد فريق بعد</div>'}
+      </div>
+      <div class="add-form" style="margin-top:12px;">
+        <label style="margin-top:0;">إضافة عضوة جديدة للفريق</label>
+        <input id="newExpertName" placeholder="الاسم">
+        <select id="newExpertDept">${c.departments.map(d=>`<option value="${d}">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</option>`).join('') || '<option value="">أضيفي قسماً أولاً</option>'}</select>
+        <input id="newExpertSpec" placeholder="التخصص بالضبط">
+        <button id="addExpertBtn">إضافة</button>
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <h4>الباقات (${myPackages.length})</h4>
+      <div id="packagesRows">
+        ${myPackages.map(p=>`
+          <div class="list-row">
+            <div class="main">
+              <div class="t1">${p.name} — ${p.price} د.ل</div>
+              <div class="t2">${p.items}</div>
+            </div>
+            <button class="icon-btn" data-remove-package="${p.id}">حذف</button>
+          </div>
+        `).join('') || '<div class="empty-state">لا توجد باقات بعد</div>'}
+      </div>
+      <div class="add-form" style="margin-top:12px;">
+        <label style="margin-top:0;">إضافة باقة جديدة</label>
+        <input id="newPkgName" placeholder="اسم الباقة">
+        <input id="newPkgItems" placeholder="المحتويات (مثال: شعر + مكياج)">
+        <input id="newPkgPrice" placeholder="السعر (د.ل)" type="number">
+        <button id="addPkgBtn">إضافة</button>
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <h4>الحجوزات (${myBookings.length})</h4>
+      <div id="bookingsRows">
+        ${myBookings.map(b=>`
+          <div class="list-row">
+            <div class="main">
+              <div class="t1">${b.date.split('-').reverse().slice(0,2).join('/')} — ${b.time}</div>
+              <div class="t2">${b.service}${b.expertName ? ' · '+b.expertName : ''} · ${b.customerName} · ${b.phone}</div>
+            </div>
+            <button class="icon-btn" data-cancel-booking="${b.id}">إلغاء</button>
+          </div>
+        `).join('') || '<div class="empty-state">لا توجد حجوزات بعد</div>'}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('saveCenterInfo').addEventListener('click', async ()=>{
+    c.name = document.getElementById('editName').value.trim() || c.name;
+    c.city = document.getElementById('editCity').value.trim() || c.city;
+    c.location = document.getElementById('editLocation').value.trim();
+    c.about = document.getElementById('editAbout').value.trim();
+    await saveCenters();
+    renderDashSelect();
+    renderCityChips();
+    renderCenterList();
+    toast('تم حفظ بيانات المركز');
+  });
+
+  document.querySelectorAll('#deptToggles .toggle-pill').forEach(pill=>{
+    pill.addEventListener('click', async ()=>{
+      const d = pill.dataset.d;
+      const idx = c.departments.indexOf(d);
+      if(idx>=0) c.departments.splice(idx,1); else c.departments.push(d);
+      await saveCenters();
+      renderDashboard();
+      renderCenterList();
+    });
+  });
+
+  document.querySelectorAll('[data-avail]').forEach(sw=>{
+    sw.addEventListener('click', async ()=>{
+      const ex = experts.find(e=>e.id===sw.dataset.avail);
+      ex.available = !ex.available;
+      await saveExperts();
+      renderDashboard();
+    });
+  });
+  document.querySelectorAll('[data-remove-expert]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      experts = experts.filter(e=>e.id!==btn.dataset.removeExpert);
+      await saveExperts();
+      renderDashboard();
+      toast('تم حذف العضوة من الفريق');
+    });
+  });
+  document.querySelectorAll('[data-remove-package]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      packages = packages.filter(p=>p.id!==btn.dataset.removePackage);
+      await savePackages();
+      renderDashboard();
+      toast('تم حذف الباقة');
+    });
+  });
+  document.querySelectorAll('[data-cancel-booking]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const b = bookings.find(x=>x.id===btn.dataset.cancelBooking);
+      if(b){ b.status='cancelled'; await saveBookings(); renderDashboard(); toast('تم إلغاء الحجز'); }
+    });
+  });
+
+  const addExpertBtn = document.getElementById('addExpertBtn');
+  if(addExpertBtn) addExpertBtn.addEventListener('click', async ()=>{
+    const name = document.getElementById('newExpertName').value.trim();
+    const department = document.getElementById('newExpertDept').value;
+    const specialty = document.getElementById('newExpertSpec').value.trim();
+    if(!name || !department){ toast('يرجى إدخال الاسم واختيار القسم'); return; }
+    experts.push({id:'e'+Date.now(), centerId:c.id, department, name, specialty: specialty||'خدمات عامة', rating:5.0, available:true, color:COLORS[experts.length % COLORS.length]});
+    await saveExperts();
+    renderDashboard();
+    toast('تمت إضافة ' + name + ' إلى الفريق');
+  });
+
+  document.getElementById('addPkgBtn').addEventListener('click', async ()=>{
+    const name = document.getElementById('newPkgName').value.trim();
+    const items = document.getElementById('newPkgItems').value.trim();
+    const price = parseFloat(document.getElementById('newPkgPrice').value) || 0;
+    if(!name){ toast('يرجى إدخال اسم الباقة'); return; }
+    packages.push({id:'p'+Date.now(), centerId:c.id, name, items, price});
+    await savePackages();
+    renderDashboard();
+    toast('تمت إضافة الباقة');
+  });
+}
+
+/* ---------------- TABS ---------------- */
+document.getElementById('tabCustomer').addEventListener('click', ()=>{
+  document.getElementById('tabCustomer').classList.add('active');
+  document.getElementById('tabDash').classList.remove('active');
+  document.getElementById('viewDash').classList.remove('visible');
+  document.getElementById('viewHome').classList.add('visible');
+  document.getElementById('viewCenterDetail').classList.remove('visible');
+});
+document.getElementById('tabDash').addEventListener('click', ()=>{
+  document.getElementById('tabDash').classList.add('active');
+  document.getElementById('tabCustomer').classList.remove('active');
+  document.getElementById('viewHome').classList.remove('visible');
+  document.getElementById('viewCenterDetail').classList.remove('visible');
+  document.getElementById('viewDash').classList.add('visible');
+});
+
+/* ---------------- INIT ---------------- */
+(async function init(){
+  await loadAll();
+  renderCityChips();
+  renderCenterList();
+  dashCenterId = centers[0]?.id || null;
+  renderDashSelect();
+  renderDashboard();
+})();
+</script>
+</body>
+</html>

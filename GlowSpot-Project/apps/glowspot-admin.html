@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<script src="glowspot-storage-polyfill.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GlowSpot Admin — إدارة المنصة</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&family=Playfair+Display:wght@700;800&display=swap');
+:root{
+  --maroon:#B36270; --maroon-dark:#8B4B56; --rose:#D9A3AC; --gold:#B36270;
+  --blush:#FFFAFA; --card:#FFFFFF; --ink:#333333; --muted:#8F8888; --line:#E5DFDF;
+  --busy:#8F8888; --dark:#444444; --dark2:#333333; --danger:#B85450; --ok:#5E8A5E;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--blush);color:var(--ink);font-family:'Tajawal',sans-serif;min-height:100vh;}
+h1,h2,h3,.brand{font-family:'Cairo',sans-serif;}
+.app{max-width:520px;margin:0 auto;min-height:100vh;background:var(--blush);}
+.hidden{display:none !important;}
+section{display:none;} section.visible{display:block;}
+
+/* gate */
+#viewGate{padding:40px 24px;text-align:center;}
+.gate-brand{font-family:'Playfair Display',serif;font-size:30px;color:var(--maroon-dark);margin:20px 0 4px;}
+.gate-sub{font-size:13px;color:var(--muted);margin-bottom:24px;}
+.gate-note{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.6;}
+.demo-creds{background:#FFFCF3;border:1px dashed var(--gold);border-radius:10px;padding:10px 12px;margin-top:14px;font-size:11.5px;color:var(--ink);line-height:1.8;text-align:right;}
+.demo-creds strong{color:#8A6D0E;}
+
+header{background:linear-gradient(160deg,var(--dark) 0%, var(--dark2) 100%);padding:18px 18px 14px;border-radius:0 0 22px 22px;}
+.brand{color:#fff;font-size:18px;font-weight:800;margin:0;}
+.brand-sub{color:#D9CACA;font-size:12px;margin-top:2px;}
+.tab-row{display:flex;gap:16px;overflow-x:auto;padding:14px 2px 0;}
+.tab{flex-shrink:0;color:#C7BABA;font-size:13px;font-weight:700;cursor:pointer;padding-bottom:10px;border-bottom:2.5px solid transparent;white-space:nowrap;}
+.tab.active{color:#fff;border-color:var(--gold);}
+
+main{padding:16px 16px 30px;}
+.section-title{font-size:15px;font-weight:800;margin:4px 2px 12px;color:var(--maroon-dark);}
+
+/* stat cards */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
+.stat-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;}
+.stat-num{font-family:'Cairo',sans-serif;font-weight:800;font-size:21px;color:var(--maroon-dark);}
+.stat-label{font-size:11.5px;color:var(--muted);margin-top:3px;}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px 14px;margin-bottom:10px;}
+.card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.card .t1{font-weight:800;font-size:14px;}
+.card .t2{font-size:12px;color:var(--muted);margin-top:3px;}
+.badge{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+.badge.approved{background:#E4EEDD;color:var(--ok);}
+.badge.pending{background:#FBEBC7;color:#8A6D0E;}
+.badge.disabled{background:#F3DEDC;color:var(--danger);}
+.actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.act-btn{border:none;font-size:12px;font-weight:700;padding:7px 12px;border-radius:10px;cursor:pointer;}
+.act-approve{background:var(--ok);color:#fff;}
+.act-reject{background:var(--danger);color:#fff;}
+.act-toggle{background:var(--line);color:var(--maroon-dark);}
+
+.empty-state{text-align:center;padding:26px 10px;color:var(--muted);font-size:13px;}
+
+/* bar chart */
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+.bar-label{width:78px;flex-shrink:0;font-size:11.5px;color:var(--muted);}
+.bar-track{flex:1;background:var(--line);border-radius:8px;height:14px;overflow:hidden;}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--maroon));border-radius:8px;}
+.bar-val{width:26px;flex-shrink:0;font-size:11.5px;font-weight:700;text-align:left;}
+
+.rating-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);}
+.rating-row:last-child{border-bottom:none;}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--maroon-dark);color:#fff;padding:12px 20px;border-radius:14px;font-size:13.5px;font-weight:700;z-index:100;opacity:0;pointer-events:none;transition:opacity .3s, bottom .3s;box-shadow:0 6px 20px rgba(0,0,0,0.25);}
+.toast.show{opacity:1;bottom:34px;}
+label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:10px 2px 5px;}
+input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;font-family:'Tajawal',sans-serif;font-size:13.5px;background:#fff;color:var(--ink);}
+.confirm-btn{width:100%;margin-top:16px;border:none;background:var(--maroon-dark);color:#fff;font-family:'Cairo',sans-serif;font-weight:700;font-size:15px;padding:13px;border-radius:14px;cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <section id="viewGate" class="visible">
+    <p class="gate-brand">GlowSpot Admin</p>
+    <p class="gate-sub">لوحة تحكم إدارة المنصة — لفريق GlowSpot فقط</p>
+    <label>كلمة مرور المدير</label>
+    <input id="adminPassword" type="password" placeholder="••••••••">
+    <button class="confirm-btn" id="gateBtn">دخول</button>
+    <p class="gate-note">هذا نموذج تجريبي بكلمة مرور ثابتة لأغراض العرض فقط، وليس نظام حماية حقيقي.</p>
+    <div class="demo-creds"><strong>للدخول السريع (تجريبي):</strong><br>كلمة المرور: glowspot2026</div>
+  </section>
+
+  <div id="mainApp" class="hidden">
+    <header>
+      <p class="brand">GlowSpot Admin</p>
+      <p class="brand-sub">إدارة كاملة لمنصة GlowSpot</p>
+      <div class="tab-row" id="tabRow"></div>
+    </header>
+
+    <main>
+      <section id="viewOverview">
+        <p class="section-title">نظرة عامة</p>
+        <div class="stat-grid" id="overviewStats"></div>
+        <p class="section-title">مراكز بانتظار المراجعة</p>
+        <div id="pendingList"></div>
+      </section>
+
+      <section id="viewCenters">
+        <p class="section-title">إنشاء مركز جديد</p>
+        <div class="card">
+          <label>اسم المركز</label><input id="newCenterName" placeholder="اسم المركز">
+          <label>المدينة</label><input id="newCenterCity" placeholder="مثال: بنغازي">
+          <label>الموقع</label><input id="newCenterLocation" placeholder="مثال: الفويهات">
+          <label>نبذة عن المركز</label><input id="newCenterAbout" placeholder="نبذة مختصرة">
+          <label>اسم المستخدم (لدخول المركز للوحته)</label><input id="newCenterUsername" placeholder="مثال: glowbeauty">
+          <label>كلمة المرور</label><input id="newCenterPassword" placeholder="كلمة مرور مبدئية">
+          <button class="confirm-btn" id="createCenterBtn" style="margin-top:6px;">إنشاء المركز</button>
+        </div>
+
+        <p class="section-title">كل المراكز</p>
+        <div id="centersList"></div>
+      </section>
+
+      <section id="viewUsers">
+        <p class="section-title">العميلات المسجّلات</p>
+        <div id="usersList"></div>
+      </section>
+
+      <section id="viewBookings">
+        <p class="section-title">كل الحجوزات على المنصة</p>
+        <div id="bookingsList"></div>
+      </section>
+
+      <section id="viewReviews">
+        <p class="section-title">التقييمات الحالية</p>
+        <div id="reviewsList"></div>
+        <p class="empty-state" style="margin-top:10px;">نظام مراجعات وتعليقات تفصيلي من العميلات لم يُبنَ بعد في هذا النموذج — هذه فقط التقييمات الثابتة لكل مركز.</p>
+      </section>
+
+      <section id="viewAnalytics">
+        <p class="section-title">أكثر المدن استخداماً</p>
+        <div id="cityChart"></div>
+        <p class="section-title">أكثر المراكز حجزاً</p>
+        <div id="centerChart"></div>
+        <p class="section-title">أكثر الخدمات طلباً</p>
+        <div id="serviceChart"></div>
+        <p class="section-title">الإيرادات</p>
+        <div class="card" id="revenueNote"></div>
+      </section>
+    </main>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const ADMIN_PASSWORD = 'glowspot2026';
+const COLORS = ['#6B1F35','#C98CA7','#C9A227','#8C5B70','#9B3B49','#4E1526'];
+
+let centers=[], experts=[], packages=[], bookings=[], customers=[], reviews=[];
+let activeTab = 'overview';
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+async function loadAll(){
+  centers   = await loadKey('centers', seedCenters(), true);
+  experts   = await loadKey('experts', seedExperts(), true);
+  packages  = await loadKey('packages', seedPackages(), true);
+  bookings  = await loadKey('bookings', [], true);
+  customers = await loadKey('customers', [], true);
+  reviews   = await loadKey('reviews', [], true);
+}
+function seedCenters(){
+  return [
+    {id:'c1', name:'Glow Beauty Center', city:'بنغازي', location:'الفويهات', about:'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified:true, rating:4.8, status:'approved', departments:['hair','makeup','nails','henna','spa'], username:'glowbeauty', password:'center123', paymentMethods:{}, homeService:true, views:0},
+    {id:'c2', name:'Royal Beauty Center', city:'بنغازي', location:'بن عاشور', about:'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified:true, rating:4.6, status:'approved', departments:['hair','beauty','steam'], username:'royalbeauty', password:'center123', paymentMethods:{}, homeService:false, views:0},
+    {id:'c3', name:'Luna Spa', city:'طرابلس', location:'حي الأندلس', about:'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified:false, rating:4.7, status:'approved', departments:['spa','steam','beauty','cupping'], username:'lunaspa', password:'center123', paymentMethods:{}, homeService:true, views:0}
+  ];
+}
+function seedExperts(){
+  return [
+    {id:'e1', centerId:'c1', department:'hair',   name:'سارة', specialty:'تصفيف وصبغة الشعر', rating:4.9, available:true,  color:COLORS[0], phone:'0920000001', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e2', centerId:'c1', department:'makeup', name:'مايا', specialty:'مكياج سهرة وعرايس', rating:4.8, available:false, color:COLORS[1], phone:'0920000002', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e3', centerId:'c1', department:'nails',  name:'نورا', specialty:'جل ونيل آرت', rating:4.9, available:true,  color:COLORS[2], phone:'0920000003', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e7', centerId:'c1', department:'henna',  name:'آية',  specialty:'حنة عروس ونقشات عصرية', rating:4.9, available:true,  color:COLORS[5], phone:'0920000007', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e4', centerId:'c2', department:'hair',   name:'لينا', specialty:'قص واستشوار', rating:4.7, available:true,  color:COLORS[3], phone:'0920000004', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e5', centerId:'c2', department:'beauty', name:'هدى',  specialty:'فيشل وعناية بالبشرة', rating:4.8, available:false, color:COLORS[4], phone:'0920000005', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e6', centerId:'c3', department:'spa',    name:'أمل',  specialty:'مساج استرخاء', rating:4.9, available:true,  color:COLORS[5], phone:'0920000006', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e8', centerId:'c3', department:'cupping', name:'سلمى', specialty:'حجامة علاجية معتمدة', rating:4.8, available:true,  color:COLORS[0], phone:'0920000008', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]}
+  ];
+}
+function seedPackages(){
+  return [
+    {id:'p1', centerId:'c1', name:'باقة العروس', items:'شعر + مكياج + أظافر', price:650},
+    {id:'p2', centerId:'c1', name:'يوم الجمال', items:'شعر + فيشل + مانيكير + باديكير', price:300}
+  ];
+}
+async function loadKey(key, fallback, shared){
+  try{ const r = await window.storage.get(key, shared); if(r) return JSON.parse(r.value); }catch(e){}
+  return fallback;
+}
+async function saveKey(key, value, shared){
+  try{ await window.storage.set(key, JSON.stringify(value), shared); }
+  catch(e){ toast('تعذر حفظ البيانات'); }
+}
+const saveCenters = ()=> saveKey('centers', centers, true);
+
+document.getElementById('createCenterBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('newCenterName').value.trim();
+  const city = document.getElementById('newCenterCity').value.trim();
+  const location = document.getElementById('newCenterLocation').value.trim();
+  const about = document.getElementById('newCenterAbout').value.trim();
+  const username = document.getElementById('newCenterUsername').value.trim();
+  const password = document.getElementById('newCenterPassword').value.trim();
+  if(!name || !city || !username || !password){ toast('يرجى تعبئة الاسم والمدينة واسم المستخدم وكلمة المرور'); return; }
+  if(centers.some(c=>c.username===username)){ toast('اسم المستخدم هذا مستخدم من قبل، اختاري اسماً آخر'); return; }
+  const c = {id:'c'+Date.now(), name, city, location, about, verified:false, rating:5.0, status:'approved', departments:[], username, password, paymentMethods:{}};
+  centers.push(c);
+  await saveCenters();
+  document.getElementById('newCenterName').value='';
+  document.getElementById('newCenterCity').value='';
+  document.getElementById('newCenterLocation').value='';
+  document.getElementById('newCenterAbout').value='';
+  document.getElementById('newCenterUsername').value='';
+  document.getElementById('newCenterPassword').value='';
+  toast('تم إنشاء المركز بنجاح — أعطي صاحبة المركز اسم المستخدم وكلمة المرور لتسجيل الدخول للوحتها');
+  renderCentersList();
+});
+
+document.getElementById('gateBtn').addEventListener('click', async ()=>{
+  const pw = document.getElementById('adminPassword').value;
+  if(pw !== ADMIN_PASSWORD){ toast('كلمة المرور غير صحيحة'); return; }
+  document.getElementById('viewGate').classList.remove('visible');
+  document.getElementById('mainApp').classList.remove('hidden');
+  await loadAll();
+  renderTabs();
+  showTab('overview');
+});
+
+const TABS = [
+  {id:'overview', label:'نظرة عامة'},
+  {id:'centers', label:'المراكز'},
+  {id:'users', label:'المستخدمات'},
+  {id:'bookings', label:'الحجوزات'},
+  {id:'reviews', label:'التقييمات'},
+  {id:'analytics', label:'التحليلات'}
+];
+function renderTabs(){
+  document.getElementById('tabRow').innerHTML = TABS.map(t=>`<span class="tab ${activeTab===t.id?'active':''}" data-t="${t.id}">${t.label}</span>`).join('');
+  document.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click', ()=> showTab(tab.dataset.t));
+  });
+}
+function showTab(id){
+  activeTab = id;
+  renderTabs();
+  ['overview','centers','users','bookings','reviews','analytics'].forEach(v=>{
+    document.getElementById('view'+v.charAt(0).toUpperCase()+v.slice(1)).classList.remove('visible');
+  });
+  document.getElementById('view'+id.charAt(0).toUpperCase()+id.slice(1)).classList.add('visible');
+  if(id==='overview') renderOverview();
+  if(id==='centers') renderCentersList();
+  if(id==='users') renderUsers();
+  if(id==='bookings') renderBookingsList();
+  if(id==='reviews') renderReviews();
+  if(id==='analytics') renderAnalytics();
+}
+
+/* ---------------- OVERVIEW ---------------- */
+function renderOverview(){
+  const activeBookings = bookings.filter(b=>b.status!=='cancelled' && b.status!=='rejected');
+  document.getElementById('overviewStats').innerHTML = `
+    <div class="stat-card"><div class="stat-num">${customers.length}</div><div class="stat-label">إجمالي المستخدمات</div></div>
+    <div class="stat-card"><div class="stat-num">${centers.length}</div><div class="stat-label">مراكز التجميل</div></div>
+    <div class="stat-card"><div class="stat-num">${activeBookings.length}</div><div class="stat-label">إجمالي الحجوزات</div></div>
+    <div class="stat-card"><div class="stat-num">${estimatedRevenue().toFixed(0)} د.ل</div><div class="stat-label">إيرادات الباقات (تقديري)</div></div>
+  `;
+  const pending = centers.filter(c=>c.status==='pending');
+  const wrap = document.getElementById('pendingList');
+  if(pending.length===0){ wrap.innerHTML = '<div class="empty-state">لا توجد مراكز بانتظار المراجعة حالياً 🎉</div>'; return; }
+  wrap.innerHTML = pending.map(centerCardHtml).join('');
+  bindCenterActions(wrap);
+}
+
+function estimatedRevenue(){
+  const validBookings = bookings.filter(b=>['confirmed','in_service','completed'].includes(b.status));
+  return validBookings.reduce((sum,b)=>{
+    if(b.price) return sum + b.price;
+    if(b.department==='package'){
+      const pkg = packages.find(p=>p.centerId===b.centerId && p.name===b.service);
+      return sum + (pkg ? pkg.price : 0);
+    }
+    const ex = experts.find(e=>e.id===b.expertId);
+    const price = ex && ex.servicePrices ? ex.servicePrices[b.service] : null;
+    return sum + (price || 0);
+  }, 0);
+}
+
+/* ---------------- CENTERS ---------------- */
+function centerCardHtml(c){
+  const badgeClass = c.status==='approved' ? 'approved' : c.status==='disabled' ? 'disabled' : 'pending';
+  const badgeLabel = c.status==='approved' ? 'مفعّل' : c.status==='disabled' ? 'معطّل' : 'قيد المراجعة';
+  let actions = '';
+  if(c.status==='pending'){
+    actions = `<button class="act-btn act-approve" data-approve="${c.id}">✅ قبول</button><button class="act-btn act-reject" data-reject="${c.id}">❌ رفض</button>`;
+  } else if(c.status==='approved'){
+    actions = `<button class="act-btn act-toggle" data-disable="${c.id}">🔒 تعطيل</button>`;
+  } else if(c.status==='disabled'){
+    actions = `<button class="act-btn act-approve" data-enable="${c.id}">✅ إعادة تفعيل</button>`;
+  }
+  return `
+    <div class="card">
+      <div class="top">
+        <div>
+          <div class="t1">${c.name}</div>
+          <div class="t2">📍 ${c.location||''}, ${c.city} &nbsp;·&nbsp; ⭐ ${(c.rating||0).toFixed(1)}</div>
+          ${c.username ? `<div class="t2">👤 ${c.username}</div>` : ''}
+        </div>
+        <span class="badge ${badgeClass}">${badgeLabel}</span>
+      </div>
+      <div class="actions">${actions}</div>
+    </div>`;
+}
+function bindCenterActions(wrap){
+  wrap.querySelectorAll('[data-approve]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const c = centers.find(x=>x.id===btn.dataset.approve); c.status='approved'; await saveCenters();
+    toast('تم قبول المركز'); showTab(activeTab);
+  }));
+  wrap.querySelectorAll('[data-reject]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    centers = centers.filter(x=>x.id!==btn.dataset.reject); await saveCenters();
+    toast('تم رفض المركز وحذفه'); showTab(activeTab);
+  }));
+  wrap.querySelectorAll('[data-disable]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const c = centers.find(x=>x.id===btn.dataset.disable); c.status='disabled'; await saveCenters();
+    toast('تم تعطيل المركز'); showTab(activeTab);
+  }));
+  wrap.querySelectorAll('[data-enable]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const c = centers.find(x=>x.id===btn.dataset.enable); c.status='approved'; await saveCenters();
+    toast('تم إعادة تفعيل المركز'); showTab(activeTab);
+  }));
+}
+function renderCentersList(){
+  const wrap = document.getElementById('centersList');
+  if(centers.length===0){ wrap.innerHTML='<div class="empty-state">لا توجد مراكز مسجّلة بعد</div>'; return; }
+  wrap.innerHTML = centers.map(centerCardHtml).join('');
+  bindCenterActions(wrap);
+}
+
+/* ---------------- USERS ---------------- */
+function renderUsers(){
+  const wrap = document.getElementById('usersList');
+  if(customers.length===0){ wrap.innerHTML='<div class="empty-state">لا توجد عميلات مسجّلات بعد</div>'; return; }
+  wrap.innerHTML = customers.map(u=>{
+    const count = bookings.filter(b=>b.customerId===u.id).length;
+    return `<div class="card">
+      <div class="t1">${u.name}</div>
+      <div class="t2">${u.phone} &nbsp;·&nbsp; ${count} حجز &nbsp;·&nbsp; ${(u.favorites||[]).length} مفضّلة</div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------------- BOOKINGS ---------------- */
+function renderBookingsList(){
+  const wrap = document.getElementById('bookingsList');
+  const list = bookings.slice().sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
+  if(list.length===0){ wrap.innerHTML='<div class="empty-state">لا توجد حجوزات بعد</div>'; return; }
+  const STATUS_META = {
+    pending:{cls:'pending', label:'⏳ بانتظار الموافقة'}, confirmed:{cls:'approved', label:'🟢 مؤكد'},
+    in_service:{cls:'approved', label:'🔵 جاري الآن'}, completed:{cls:'approved', label:'✅ مكتمل'},
+    declined:{cls:'disabled', label:'❌ لم تُقبل'}, cancelled:{cls:'disabled', label:'⚫ ملغى'},
+    no_show:{cls:'disabled', label:'🚫 لم تحضر'}
+  };
+  wrap.innerHTML = list.map(b=>{
+    const meta = STATUS_META[b.status] || {cls:'disabled', label:b.status};
+    return `<div class="card">
+      <div class="top">
+        <div>
+          <div class="t1">${b.centerName}</div>
+          <div class="t2">${b.service}${b.expertName?' · '+b.expertName:''} · ${b.customerName} · ${b.date} ${b.time}</div>
+        </div>
+        <span class="badge ${meta.cls}">${meta.label}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------------- REVIEWS ---------------- */
+function renderReviews(){
+  const wrap = document.getElementById('reviewsList');
+  if(reviews.length===0){
+    wrap.innerHTML = centers.map(c=>`<div class="rating-row"><span>${c.name}</span><span>⭐ ${(c.rating||0).toFixed(1)}</span></div>`).join('');
+    return;
+  }
+  const sorted = reviews.slice().sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  wrap.innerHTML = sorted.map(r=>{
+    const c = centers.find(x=>x.id===r.centerId);
+    const e = experts.find(x=>x.id===r.expertId);
+    return `<div class="card">
+      <div class="top">
+        <div>
+          <div class="t1">${c?c.name:'مركز محذوف'}${e?' · '+e.name:''}</div>
+          <div class="t2">${r.customerName||'عميلة'} ${r.comment ? '— '+r.comment : ''}</div>
+        </div>
+        <span class="badge approved">⭐ ${r.rating}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------------- ANALYTICS ---------------- */
+function barChart(containerId, dataMap, maxItems){
+  const entries = Object.entries(dataMap).sort((a,b)=>b[1]-a[1]).slice(0,maxItems||5);
+  const max = entries.length ? entries[0][1] : 1;
+  const el = document.getElementById(containerId);
+  if(entries.length===0){ el.innerHTML = '<div class="empty-state">لا توجد بيانات كافية بعد</div>'; return; }
+  el.innerHTML = entries.map(([label,val])=>`
+    <div class="bar-row">
+      <span class="bar-label">${label}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${(val/max*100).toFixed(0)}%"></div></div>
+      <span class="bar-val">${val}</span>
+    </div>`).join('');
+}
+function renderAnalytics(){
+  const activeBookings = bookings.filter(b=>b.status!=='cancelled' && b.status!=='rejected');
+
+  const cityCounts = {};
+  activeBookings.forEach(b=>{
+    const c = centers.find(x=>x.id===b.centerId);
+    if(c) cityCounts[c.city] = (cityCounts[c.city]||0)+1;
+  });
+  barChart('cityChart', cityCounts, 6);
+
+  const centerCounts = {};
+  activeBookings.forEach(b=>{ centerCounts[b.centerName] = (centerCounts[b.centerName]||0)+1; });
+  barChart('centerChart', centerCounts, 5);
+
+  const serviceCounts = {};
+  activeBookings.forEach(b=>{ serviceCounts[b.service] = (serviceCounts[b.service]||0)+1; });
+  barChart('serviceChart', serviceCounts, 6);
+
+  document.getElementById('revenueNote').innerHTML = `
+    <div class="t1">${estimatedRevenue().toFixed(0)} د.ل</div>
+    <div class="t2">محسوبة من حجوزات الباقات + الخدمات الفردية المسعّرة من الخبيرات، للحجوزات المؤكدة أو المكتملة فقط</div>
+  `;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<script src="glowspot-storage-polyfill.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GlowSpot Staff — لوحة الخبيرة</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&family=Playfair+Display:wght@700;800&display=swap');
+:root{
+  --maroon:#B36270; --maroon-dark:#8B4B56; --rose:#D9A3AC; --gold:#B36270;
+  --blush:#FFFAFA; --card:#FFFFFF; --ink:#333333; --muted:#8F8888; --line:#E5DFDF;
+  --busy:#8F8888; --dark:#444444; --dark2:#333333; --danger:#B85450; --ok:#5E8A5E;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--blush);color:var(--ink);font-family:'Tajawal',sans-serif;min-height:100vh;}
+h1,h2,h3,.brand{font-family:'Cairo',sans-serif;}
+.app{max-width:520px;margin:0 auto;min-height:100vh;background:var(--blush);padding-bottom:76px;}
+.hidden{display:none !important;}
+section{display:none;} section.visible{display:block;}
+
+#viewGate{padding:40px 24px;}
+.gate-brand{font-family:'Playfair Display',serif;font-size:30px;color:var(--maroon-dark);text-align:center;margin:20px 0 4px;}
+.gate-sub{font-size:13px;color:var(--muted);text-align:center;margin-bottom:26px;}
+.gate-note{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.6;text-align:center;}
+.demo-creds{background:#FFFCF3;border:1px dashed var(--gold);border-radius:10px;padding:10px 12px;margin-top:14px;font-size:11.5px;color:var(--ink);line-height:1.8;text-align:right;}
+.demo-creds strong{color:#8A6D0E;}
+
+header{background:linear-gradient(135deg,var(--maroon) 0%,var(--maroon-dark) 100%);color:#fff;padding:20px 18px 14px;border-radius:0 0 24px 24px;position:relative;overflow:hidden;}
+header::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 85% -10%, rgba(255,255,255,0.18), transparent 55%);pointer-events:none;}
+.greet{font-family:'Cairo',sans-serif;font-size:18px;font-weight:800;margin:0;position:relative;}
+.greet-sub{font-size:12.5px;color:#F3E1E4;margin-top:3px;position:relative;}
+.tab-row{display:flex;gap:16px;overflow-x:auto;padding:14px 2px 0;position:relative;}
+.tab{flex-shrink:0;color:#E0C9CD;font-size:13px;font-weight:700;cursor:pointer;padding-bottom:10px;border-bottom:2.5px solid transparent;white-space:nowrap;}
+.tab.active{color:#fff;border-color:var(--gold);}
+
+main{padding:16px 16px 4px;}
+.section-title{font-size:15px;font-weight:800;margin:4px 2px 12px;color:var(--maroon-dark);}
+
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px;}
+.stat-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 6px;text-align:center;}
+.stat-num{font-family:'Cairo',sans-serif;font-weight:800;font-size:17px;color:var(--maroon-dark);}
+.stat-label{font-size:9.5px;color:var(--muted);margin-top:2px;line-height:1.3;}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px 14px;margin-bottom:10px;}
+.card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.card .t1{font-weight:800;font-size:14px;}
+.card .t2{font-size:12px;color:var(--muted);margin-top:3px;}
+.badge{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+.badge.pending{background:#FBEBC7;color:#8A6D0E;}
+.badge.approved{background:#E4EEDD;color:var(--ok);}
+.badge.disabled{background:#F3DEDC;color:var(--danger);}
+.actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.act-btn{border:none;font-size:12px;font-weight:700;padding:7px 12px;border-radius:10px;cursor:pointer;}
+.act-approve{background:var(--ok);color:#fff;}
+.act-reject{background:var(--danger);color:#fff;}
+.act-toggle{background:var(--line);color:var(--maroon-dark);}
+.act-gold{background:var(--gold);color:#fff;}
+
+.reason-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px;}
+.reason-chip{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer;color:var(--ink);}
+.reason-chip.active{background:var(--danger);border-color:var(--danger);color:#fff;}
+
+.detail-toggle{font-size:11.5px;font-weight:700;color:var(--maroon);cursor:pointer;margin-top:8px;display:inline-block;}
+.client-panel{background:#FBF6EE;border-radius:12px;padding:10px 12px;margin-top:8px;font-size:12px;color:var(--ink);}
+.client-panel textarea{margin-top:6px;font-size:12.5px;}
+
+.empty-state{text-align:center;padding:24px 10px;color:var(--muted);font-size:13px;}
+
+.cal-toggle{display:flex;background:#fff;border:1.5px solid var(--line);border-radius:13px;padding:4px;margin-bottom:14px;}
+.cal-toggle button{flex:1;border:none;background:transparent;padding:9px;border-radius:10px;font-weight:700;font-size:12.5px;color:var(--muted);cursor:pointer;}
+.cal-toggle button.active{background:var(--maroon);color:#fff;}
+.day-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.day-nav button{border:none;background:var(--line);color:var(--maroon-dark);width:34px;height:34px;border-radius:50%;font-weight:800;cursor:pointer;font-size:16px;}
+.day-nav .lbl{font-weight:800;font-size:14px;color:var(--maroon-dark);}
+.week-group-label{font-size:12.5px;font-weight:800;color:var(--maroon-dark);margin:14px 2px 6px;}
+
+.svc-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
+.svc-row:last-child{border-bottom:none;}
+.svc-row .name{flex:1;font-size:13px;font-weight:700;}
+.svc-row input{width:90px;text-align:center;}
+
+.hours-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.hours-row:last-child{border-bottom:none;}
+.hours-row .day-lbl{width:64px;font-size:12.5px;font-weight:700;flex-shrink:0;}
+.hours-row input[type="time"]{width:92px;padding:7px 6px;font-size:12px;}
+.off-chip{border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:6px 10px;font-size:11.5px;font-weight:700;cursor:pointer;color:var(--ink);flex-shrink:0;}
+.off-chip.active{background:var(--danger);border-color:var(--danger);color:#fff;}
+
+.rating-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);}
+.rating-row:last-child{border-bottom:none;}
+.big-rating{font-family:'Cairo',sans-serif;font-size:30px;font-weight:800;color:var(--maroon-dark);text-align:center;margin:6px 0 2px;}
+.big-rating-sub{text-align:center;font-size:12px;color:var(--muted);margin-bottom:16px;}
+
+label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:10px 2px 5px;}
+input,textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;font-family:'Tajawal',sans-serif;font-size:13.5px;background:#fff;color:var(--ink);}
+.confirm-btn{width:100%;margin-top:16px;border:none;background:var(--maroon-dark);color:#fff;font-family:'Cairo',sans-serif;font-weight:700;font-size:15px;padding:13px;border-radius:14px;cursor:pointer;}
+.logout-btn{width:100%;border:1.5px solid var(--danger);background:#fff;color:var(--danger);font-weight:700;font-size:13px;padding:10px;border-radius:12px;cursor:pointer;margin-bottom:16px;}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--maroon-dark);color:#fff;padding:12px 20px;border-radius:14px;font-size:13.5px;font-weight:700;z-index:100;opacity:0;pointer-events:none;transition:opacity .3s, bottom .3s;box-shadow:0 6px 20px rgba(0,0,0,0.25);}
+.toast.show{opacity:1;bottom:34px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <section id="viewGate" class="visible">
+    <p class="gate-brand">GlowSpot Staff</p>
+    <p class="gate-sub">لوحة الخبيرة — لإدارة طلباتك ومواعيدك</p>
+    <label>رقم الهاتف</label>
+    <input id="staffPhone" type="tel" placeholder="09xxxxxxxx">
+    <label>كلمة المرور</label>
+    <input id="staffPassword" type="password" placeholder="••••••••">
+    <button class="confirm-btn" id="gateBtn">تسجيل الدخول</button>
+    <p class="gate-note">تحصلين على رقم هاتفك وكلمة مرورك من صاحبة المركز عند إضافتك للفريق. هذا نموذج تجريبي وليس نظام حماية حقيقي.</p>
+    <div class="demo-creds">
+      <strong>للدخول السريع (تجريبي) — كلمة المرور للجميع: expert123</strong><br>
+      0920000001 — سارة (شعر)<br>
+      0920000002 — مايا (مكياج)<br>
+      0920000003 — نورا (أظافر)<br>
+      0920000007 — آية (حنة)<br>
+      0920000004 — لينا (شعر، مركز ثاني)<br>
+      0920000005 — هدى (عناية بالبشرة)<br>
+      0920000006 — أمل (سبا)<br>
+      0920000008 — سلمى (حجامة)
+    </div>
+  </section>
+
+  <div id="mainApp" class="hidden">
+    <header>
+      <p class="greet" id="greetText"></p>
+      <p class="greet-sub" id="greetSub"></p>
+      <div class="tab-row" id="tabRow"></div>
+    </header>
+
+    <main>
+      <section id="viewHome">
+        <div class="stat-grid" id="statGrid"></div>
+        <p class="section-title">طلبات جديدة</p>
+        <div id="requestsList"></div>
+        <p class="section-title">مواعيد اليوم</p>
+        <div id="todayList"></div>
+      </section>
+
+      <section id="viewCalendar">
+        <div class="cal-toggle">
+          <button id="calDayBtn" class="active">اليوم</button>
+          <button id="calWeekBtn">الأسبوع</button>
+        </div>
+        <div id="calDayNav" class="day-nav"></div>
+        <div id="calContent"></div>
+      </section>
+
+      <section id="viewServices">
+        <p class="section-title">خدماتي وأسعاري</p>
+        <div id="servicesList"></div>
+        <p class="empty-state" style="margin-top:6px;">حدّدي مدة كل خدمة بالدقائق — العميلات سيشفن مواعيد مقسّمة فعلياً على مدة خدمتك، بدون تراكم أو انتظار.</p>
+      </section>
+
+      <section id="viewAvailability">
+        <p class="section-title">ساعات العمل الأسبوعية</p>
+        <div id="hoursList"></div>
+        <button class="confirm-btn" id="saveHoursBtn">حفظ ساعات العمل</button>
+
+        <p class="section-title" style="margin-top:24px;">طلب إجازة</p>
+        <label>التاريخ</label>
+        <input id="leaveDate" type="date">
+        <button class="confirm-btn" id="requestLeaveBtn">إرسال طلب الإجازة</button>
+        <div id="leaveHistory" style="margin-top:14px;"></div>
+      </section>
+
+      <section id="viewNotifications">
+        <p class="section-title">الإشعارات</p>
+        <div id="notifList"></div>
+      </section>
+
+      <section id="viewReviews">
+        <p class="section-title">تقييماتي</p>
+        <div class="big-rating" id="bigRating"></div>
+        <div class="big-rating-sub" id="bigRatingSub"></div>
+        <div id="reviewsList"></div>
+        <button class="logout-btn" id="logoutBtn" style="margin-top:20px;">تسجيل الخروج</button>
+      </section>
+    </main>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS = ['#6B1F35','#C98CA7','#C9A227','#8C5B70','#9B3B49','#4E1526'];
+const DEPARTMENTS = {
+  hair:   {ar:'شعر',           icon:'💇', services:['تصفيف شعر','صبغة شعر','علاج الشعر','تسريحة عروس']},
+  makeup: {ar:'مكياج',          icon:'💄', services:['مكياج خفيف','مكياج كامل','مكياج عروس']},
+  nails:  {ar:'أظافر',          icon:'💅', services:['مانيكير','باديكير','مانيكير وباديكير معاً','جل','نيل آرت']},
+  henna:  {ar:'حنة',            icon:'🌿', services:['حنة عروس','حنة يدين','حنة أرجل','نقشة عصرية']},
+  spa:    {ar:'سبا',            icon:'💆', services:['مساج','مساج استرخاء','عناية بالجسم']},
+  steam:  {ar:'حمام بخار',      icon:'🧖', services:['حمام بخار','حمام تركي','تقشير الجسم']},
+  beauty: {ar:'عناية وجمال',    icon:'👁️', services:['رموش','حواجب','فيشل','عناية بالبشرة']},
+  cupping:{ar:'حجامة',          icon:'🔥', services:['حجامة جافة','حجامة رطبة','حجامة الظهر والكتفين']}
+};
+const DECLINE_REASONS = ['غير متفرغة الآن','تعارض في الوقت','في إجازة','الخدمة غير متوفرة','سبب آخر'];
+const STATUS_META = {
+  pending:{cls:'pending', label:'⏳ بانتظار الموافقة'}, confirmed:{cls:'approved', label:'🟢 مؤكد'},
+  in_service:{cls:'approved', label:'🔵 جاري الآن'}, completed:{cls:'approved', label:'✅ مكتمل'},
+  declined:{cls:'disabled', label:'❌ لم تُقبل'}, cancelled:{cls:'disabled', label:'⚫ ملغى'},
+  no_show:{cls:'disabled', label:'🚫 لم تحضر'}
+};
+const WEEKDAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
+const WEEKDAY_LABELS = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+
+let centers=[], experts=[], bookings=[], customers=[], reviews=[];
+let staffSession = null; // {expertId}
+let activeTab = 'home';
+let decliningId = null;
+let declineReason = null;
+let expandedClientId = null;
+let calMode = 'day';
+let calDayOffset = 0;
+
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+function me(){ return experts.find(e=>e.id===(staffSession&&staffSession.expertId)); }
+function dateKey(d){ return d.toISOString().slice(0,10); }
+function todayStr(){ return dateKey(new Date()); }
+function timeToMin(t){ const [h,m] = t.split(':').map(Number); return h*60+m; }
+function minToTime(mins){ const h=Math.floor(mins/60), m=mins%60; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+function bookingTimeRange(b){
+  const dur = b.duration || 60;
+  return b.time + ' – ' + minToTime(timeToMin(b.time) + dur) + ' (' + dur + ' د)';
+}
+
+async function loadAll(){
+  centers   = await loadKey('centers', seedCenters(), true);
+  experts   = await loadKey('experts', seedExperts(), true);
+  bookings  = await loadKey('bookings', [], true);
+  customers = await loadKey('customers', [], true);
+  reviews   = await loadKey('reviews', [], true);
+  try{ const s = await window.storage.get('staffSession', false); staffSession = s ? JSON.parse(s.value) : null; }catch(e){ staffSession = null; }
+}
+function seedCenters(){
+  return [
+    {id:'c1', name:'Glow Beauty Center', city:'بنغازي', location:'الفويهات', about:'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified:true, rating:4.8, status:'approved', departments:['hair','makeup','nails','henna','spa'], username:'glowbeauty', password:'center123', paymentMethods:{}, homeService:true, views:0},
+    {id:'c2', name:'Royal Beauty Center', city:'بنغازي', location:'بن عاشور', about:'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified:true, rating:4.6, status:'approved', departments:['hair','beauty','steam'], username:'royalbeauty', password:'center123', paymentMethods:{}, homeService:false, views:0},
+    {id:'c3', name:'Luna Spa', city:'طرابلس', location:'حي الأندلس', about:'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified:false, rating:4.7, status:'approved', departments:['spa','steam','beauty','cupping'], username:'lunaspa', password:'center123', paymentMethods:{}, homeService:true, views:0}
+  ];
+}
+function seedExperts(){
+  return [
+    {id:'e1', centerId:'c1', department:'hair',   name:'سارة', specialty:'تصفيف وصبغة الشعر', rating:4.9, available:true,  color:COLORS[0], phone:'0920000001', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e2', centerId:'c1', department:'makeup', name:'مايا', specialty:'مكياج سهرة وعرايس', rating:4.8, available:false, color:COLORS[1], phone:'0920000002', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e3', centerId:'c1', department:'nails',  name:'نورا', specialty:'جل ونيل آرت', rating:4.9, available:true,  color:COLORS[2], phone:'0920000003', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e7', centerId:'c1', department:'henna',  name:'آية',  specialty:'حنة عروس ونقشات عصرية', rating:4.9, available:true,  color:COLORS[5], phone:'0920000007', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e4', centerId:'c2', department:'hair',   name:'لينا', specialty:'قص واستشوار', rating:4.7, available:true,  color:COLORS[3], phone:'0920000004', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e5', centerId:'c2', department:'beauty', name:'هدى',  specialty:'فيشل وعناية بالبشرة', rating:4.8, available:false, color:COLORS[4], phone:'0920000005', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e6', centerId:'c3', department:'spa',    name:'أمل',  specialty:'مساج استرخاء', rating:4.9, available:true,  color:COLORS[5], phone:'0920000006', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e8', centerId:'c3', department:'cupping', name:'سلمى', specialty:'حجامة علاجية معتمدة', rating:4.8, available:true,  color:COLORS[0], phone:'0920000008', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]}
+  ];
+}
+async function loadKey(key, fallback, shared){
+  try{ const r = await window.storage.get(key, shared); if(r) return JSON.parse(r.value); }catch(e){}
+  return fallback;
+}
+async function saveKey(key, value, shared){
+  try{ await window.storage.set(key, JSON.stringify(value), shared); }
+  catch(e){ toast('تعذر حفظ البيانات'); }
+}
+const saveExperts  = ()=> saveKey('experts', experts, true);
+const saveBookings = ()=> saveKey('bookings', bookings, true);
+const saveSession  = ()=> saveKey('staffSession', staffSession, false);
+
+/* ---------------- AUTH ---------------- */
+document.getElementById('gateBtn').addEventListener('click', async ()=>{
+  const phone = document.getElementById('staffPhone').value.trim();
+  const password = document.getElementById('staffPassword').value;
+  const ex = experts.find(e=>e.phone===phone && e.password===password);
+  if(!ex){ toast('رقم الهاتف أو كلمة المرور غير صحيحة'); return; }
+  staffSession = {expertId: ex.id};
+  await saveSession();
+  enterApp();
+});
+document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+  staffSession = null;
+  await saveSession();
+  document.getElementById('mainApp').classList.add('hidden');
+  document.getElementById('viewGate').classList.remove('visible');
+});
+
+function enterApp(){
+  document.getElementById('viewGate').classList.remove('visible');
+  document.getElementById('mainApp').classList.remove('hidden');
+  renderHeader();
+  renderTabs();
+  showTab('home');
+}
+function renderHeader(){
+  const ex = me(); if(!ex) return;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'صباح الخير' : hour < 18 ? 'مساء الخير' : 'مساء الخير';
+  const c = centers.find(x=>x.id===ex.centerId);
+  document.getElementById('greetText').textContent = `${greeting}، ${ex.name} ✨`;
+  document.getElementById('greetSub').textContent = (c?c.name+' · ':'') + (DEPARTMENTS[ex.department]?DEPARTMENTS[ex.department].ar:'');
+}
+
+const TABS = [
+  {id:'home', label:'الرئيسية'}, {id:'calendar', label:'التقويم'}, {id:'services', label:'خدماتي'},
+  {id:'availability', label:'التوفر'}, {id:'notifications', label:'الإشعارات'}, {id:'reviews', label:'تقييماتي'}
+];
+function renderTabs(){
+  document.getElementById('tabRow').innerHTML = TABS.map(t=>`<span class="tab ${activeTab===t.id?'active':''}" data-t="${t.id}">${t.label}</span>`).join('');
+  document.querySelectorAll('.tab').forEach(tab=> tab.addEventListener('click', ()=> showTab(tab.dataset.t)));
+}
+function showTab(id){
+  activeTab = id;
+  renderTabs();
+  ['home','calendar','services','availability','notifications','reviews'].forEach(v=>{
+    document.getElementById('view'+v.charAt(0).toUpperCase()+v.slice(1)).classList.remove('visible');
+  });
+  document.getElementById('view'+id.charAt(0).toUpperCase()+id.slice(1)).classList.add('visible');
+  if(id==='home') renderHome();
+  if(id==='calendar') renderCalendar();
+  if(id==='services') renderServices();
+  if(id==='availability') renderAvailability();
+  if(id==='notifications') renderNotifications();
+  if(id==='reviews') renderReviews();
+}
+
+/* ---------------- HOME ---------------- */
+function myBookings(){
+  const ex = me(); if(!ex) return [];
+  return bookings.filter(b=>b.expertId===ex.id);
+}
+function clientHistory(customerId){
+  const ex = me();
+  const done = myBookings().filter(b=>b.customerId===customerId && b.status==='completed');
+  return {count: done.length, services: done.map(b=>b.service)};
+}
+function clientPanelHtml(b){
+  const ex = me();
+  const hist = clientHistory(b.customerId);
+  const note = (ex.clientNotes && ex.clientNotes[b.customerId]) || '';
+  return `<div class="client-panel">
+    <div><strong>زيارات سابقة:</strong> ${hist.count}</div>
+    ${hist.services.length ? `<div><strong>خدمات سابقة:</strong> ${hist.services.join('، ')}</div>` : ''}
+    <textarea rows="2" placeholder="ملاحظات عن هذه العميلة..." data-note-for="${b.customerId||''}">${note}</textarea>
+  </div>`;
+}
+function bindClientPanel(wrap){
+  wrap.querySelectorAll('[data-toggle-client]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      expandedClientId = expandedClientId===btn.dataset.toggleClient ? null : btn.dataset.toggleClient;
+      renderHome(); renderCalendar();
+    });
+  });
+  wrap.querySelectorAll('[data-note-for]').forEach(ta=>{
+    ta.addEventListener('blur', async ()=>{
+      const ex = me();
+      ex.clientNotes = ex.clientNotes || {};
+      ex.clientNotes[ta.dataset.noteFor] = ta.value;
+      await saveExperts();
+      toast('تم حفظ الملاحظة');
+    });
+  });
+}
+
+function renderHome(){
+  const mine = myBookings();
+  const pending = mine.filter(b=>b.status==='pending');
+  const confirmedActive = mine.filter(b=>b.status==='confirmed'||b.status==='in_service');
+  const completed = mine.filter(b=>b.status==='completed');
+  const cancelledish = mine.filter(b=>['cancelled','declined','no_show'].includes(b.status));
+  document.getElementById('statGrid').innerHTML = `
+    <div class="stat-card"><div class="stat-num">${pending.length}</div><div class="stat-label">🟠 قيد الانتظار</div></div>
+    <div class="stat-card"><div class="stat-num">${confirmedActive.length}</div><div class="stat-label">🟢 مؤكدة</div></div>
+    <div class="stat-card"><div class="stat-num">${completed.length}</div><div class="stat-label">🔵 مكتملة</div></div>
+    <div class="stat-card"><div class="stat-num">${cancelledish.length}</div><div class="stat-label">🔴 ملغاة</div></div>
+  `;
+
+  const reqWrap = document.getElementById('requestsList');
+  reqWrap.innerHTML = pending.length===0 ? '<div class="empty-state">لا توجد طلبات جديدة حالياً 🎉</div>' : pending.map(b=>{
+    const declining = decliningId===b.id;
+    return `<div class="card">
+      <div class="top">
+        <div>
+          <div class="t1">${b.customerName}</div>
+          <div class="t2">${b.service} · ${b.date} — ${bookingTimeRange(b)}</div>
+        </div>
+        <span class="badge pending">جديد</span>
+      </div>
+      ${b.serviceLocation==='home' ? `<div class="card" style="background:#FBF6EE;padding:8px 10px;margin-top:8px;">🏠 خدمة منزلية — ${b.homeAddress}</div>` : ''}
+      <span class="detail-toggle" data-toggle-client="${b.customerId||''}">${expandedClientId===b.customerId ? 'إخفاء تفاصيل العميلة ˄' : 'عرض تفاصيل العميلة ˅'}</span>
+      ${expandedClientId===b.customerId ? clientPanelHtml(b) : ''}
+      <div class="actions">
+        <button class="act-btn act-approve" data-accept="${b.id}">✓ قبول</button>
+        <button class="act-btn act-reject" data-decline="${b.id}">✕ رفض</button>
+      </div>
+      ${declining ? `
+        <div class="reason-row">
+          ${DECLINE_REASONS.map(r=>`<span class="reason-chip ${declineReason===r?'active':''}" data-reason="${r}">${r}</span>`).join('')}
+        </div>
+        <div class="actions"><button class="act-btn act-reject" data-confirm-decline="${b.id}">تأكيد الرفض</button></div>
+      ` : ''}
+    </div>`;
+  }).join('');
+  bindClientPanel(reqWrap);
+  reqWrap.querySelectorAll('[data-accept]').forEach(btn=> btn.addEventListener('click', ()=> acceptBooking(btn.dataset.accept)));
+  reqWrap.querySelectorAll('[data-decline]').forEach(btn=> btn.addEventListener('click', ()=>{
+    decliningId = decliningId===btn.dataset.decline ? null : btn.dataset.decline; declineReason=null; renderHome();
+  }));
+  reqWrap.querySelectorAll('[data-reason]').forEach(chip=> chip.addEventListener('click', ()=>{ declineReason = chip.dataset.reason; renderHome(); }));
+  reqWrap.querySelectorAll('[data-confirm-decline]').forEach(btn=> btn.addEventListener('click', ()=> declineBooking(btn.dataset.confirmDecline)));
+
+  const today = mine.filter(b=>b.date===todayStr() && (b.status==='confirmed'||b.status==='in_service'))
+    .sort((a,b)=>a.time.localeCompare(b.time));
+  const todayWrap = document.getElementById('todayList');
+  todayWrap.innerHTML = today.length===0 ? '<div class="empty-state">لا توجد مواعيد مجدولة اليوم</div>' : today.map(b=> bookingActionCardHtml(b)).join('');
+  bindClientPanel(todayWrap);
+  bindStatusActions(todayWrap);
+}
+
+function bookingActionCardHtml(b){
+  const meta = STATUS_META[b.status] || {cls:'disabled', label:b.status};
+  let actions = '';
+  if(b.status==='confirmed') actions = `<button class="act-btn act-gold" data-start="${b.id}">▶ بدء الخدمة</button><button class="act-btn act-toggle" data-noshow="${b.id}">🚫 لم تحضر</button><button class="act-btn act-reject" data-cancel="${b.id}">✖ إلغاء</button>`;
+  else if(b.status==='in_service') actions = `<button class="act-btn act-approve" data-complete="${b.id}">✅ إنهاء الخدمة</button>`;
+  return `<div class="card">
+    <div class="top">
+      <div>
+        <div class="t1">${b.customerName}</div>
+        <div class="t2">${b.service} · ${bookingTimeRange(b)}</div>
+      </div>
+      <span class="badge ${meta.cls}">${meta.label}</span>
+    </div>
+    <span class="detail-toggle" data-toggle-client="${b.customerId||''}">${expandedClientId===b.customerId ? 'إخفاء تفاصيل العميلة ˄' : 'عرض تفاصيل العميلة ˅'}</span>
+    ${b.serviceLocation==='home' ? `<div class="card" style="background:#FBF6EE;padding:8px 10px;margin-top:8px;">🏠 خدمة منزلية — ${b.homeAddress}</div>` : ''}
+    ${expandedClientId===b.customerId ? clientPanelHtml(b) : ''}
+    <div class="actions">${actions}</div>
+  </div>`;
+}
+function bindStatusActions(wrap){
+  wrap.querySelectorAll('[data-start]').forEach(btn=> btn.addEventListener('click', ()=> setStatus(btn.dataset.start,'in_service')));
+  wrap.querySelectorAll('[data-complete]').forEach(btn=> btn.addEventListener('click', ()=> setStatus(btn.dataset.complete,'completed')));
+  wrap.querySelectorAll('[data-noshow]').forEach(btn=> btn.addEventListener('click', ()=> setStatus(btn.dataset.noshow,'no_show')));
+  wrap.querySelectorAll('[data-cancel]').forEach(btn=> btn.addEventListener('click', ()=> setStatus(btn.dataset.cancel,'cancelled')));
+}
+async function setStatus(bookingId, status){
+  const b = bookings.find(x=>x.id===bookingId);
+  if(!b) return;
+  b.status = status;
+  await saveBookings();
+  toast('تم تحديث حالة الموعد');
+  renderHome(); renderCalendar();
+}
+async function acceptBooking(id){
+  const b = bookings.find(x=>x.id===id);
+  if(!b) return;
+  b.status = 'confirmed';
+  await saveBookings();
+  toast('تم قبول الحجز ✓');
+  renderHome();
+}
+async function declineBooking(id){
+  if(!declineReason){ toast('يرجى اختيار سبب الرفض'); return; }
+  const b = bookings.find(x=>x.id===id);
+  if(!b) return;
+  b.status = 'declined';
+  b.declineReason = declineReason;
+  const ex = me();
+  const bStart = timeToMin(b.time);
+  const rangesOverlap = (aStart,aDur,bStartT,bDur)=> aStart < bStartT+bDur && bStartT < aStart+aDur;
+  const alternatives = experts.filter(e=>e.id!==ex.id && e.centerId===ex.centerId && e.department===ex.department && e.available)
+    .filter(e=>{
+      const dur = (e.serviceDurations && e.serviceDurations[b.service]) || b.duration || 60;
+      return !bookings.some(x=>x.expertId===e.id && x.date===b.date && x.status!=='cancelled' && x.status!=='declined'
+        && rangesOverlap(bStart, b.duration||60, timeToMin(x.time), x.duration||60));
+    })
+    .slice(0,3).map(e=>({expertId:e.id, expertName:e.name}));
+  b.alternatives = alternatives;
+  await saveBookings();
+  decliningId = null; declineReason = null;
+  toast('تم رفض الطلب' + (alternatives.length ? ' — تم اقتراح بدائل للعميلة' : ''));
+  renderHome();
+}
+
+/* ---------------- CALENDAR ---------------- */
+document.getElementById('calDayBtn').addEventListener('click', ()=>{ calMode='day'; calDayOffset=0; document.getElementById('calDayBtn').classList.add('active'); document.getElementById('calWeekBtn').classList.remove('active'); renderCalendar(); });
+document.getElementById('calWeekBtn').addEventListener('click', ()=>{ calMode='week'; document.getElementById('calWeekBtn').classList.add('active'); document.getElementById('calDayBtn').classList.remove('active'); renderCalendar(); });
+
+function renderCalendar(){
+  const mine = myBookings().filter(b=>!['cancelled','declined'].includes(b.status));
+  const nav = document.getElementById('calDayNav');
+  const content = document.getElementById('calContent');
+
+  if(calMode==='day'){
+    const d = new Date(); d.setDate(d.getDate()+calDayOffset);
+    const key = dateKey(d);
+    nav.innerHTML = `<button id="prevDay">‹</button><span class="lbl">${WEEKDAY_LABELS[d.getDay()]} — ${d.getDate()}/${d.getMonth()+1}</span><button id="nextDay">›</button>`;
+    document.getElementById('prevDay').addEventListener('click', ()=>{ calDayOffset--; renderCalendar(); });
+    document.getElementById('nextDay').addEventListener('click', ()=>{ calDayOffset++; renderCalendar(); });
+    const list = mine.filter(b=>b.date===key).sort((a,b)=>a.time.localeCompare(b.time));
+    content.innerHTML = list.length===0 ? '<div class="empty-state">لا توجد مواعيد في هذا اليوم</div>' : list.map(b=>bookingActionCardHtml(b)).join('');
+    bindClientPanel(content); bindStatusActions(content);
+  } else {
+    nav.innerHTML = '';
+    const today = new Date();
+    let html = '';
+    for(let i=0;i<7;i++){
+      const d = new Date(today); d.setDate(today.getDate()+i);
+      const key = dateKey(d);
+      const list = mine.filter(b=>b.date===key).sort((a,b)=>a.time.localeCompare(b.time));
+      if(list.length===0) continue;
+      html += `<p class="week-group-label">${WEEKDAY_LABELS[d.getDay()]} — ${d.getDate()}/${d.getMonth()+1}</p>`;
+      html += list.map(b=>bookingActionCardHtml(b)).join('');
+    }
+    content.innerHTML = html || '<div class="empty-state">لا توجد مواعيد قادمة خلال ٧ أيام</div>';
+    bindClientPanel(content); bindStatusActions(content);
+  }
+}
+
+/* ---------------- SERVICES & PRICES ---------------- */
+function renderServices(){
+  const ex = me(); if(!ex) return;
+  const services = (DEPARTMENTS[ex.department] && DEPARTMENTS[ex.department].services) || [];
+  ex.servicePrices = ex.servicePrices || {};
+  ex.serviceDurations = ex.serviceDurations || {};
+  document.getElementById('servicesList').innerHTML = services.map(s=>`
+    <div class="svc-row" style="flex-wrap:wrap;">
+      <span class="name">${s}</span>
+      <input type="number" min="0" data-svc="${s}" value="${ex.servicePrices[s]||''}" placeholder="السعر" style="width:80px;">
+      <span style="font-size:12px;color:var(--muted);">د.ل</span>
+      <input type="number" min="5" step="5" data-dur="${s}" value="${ex.serviceDurations[s]||''}" placeholder="60" style="width:70px;">
+      <span style="font-size:12px;color:var(--muted);">دقيقة</span>
+    </div>`).join('');
+  document.querySelectorAll('[data-svc]').forEach(inp=>{
+    inp.addEventListener('change', async ()=>{
+      ex.servicePrices[inp.dataset.svc] = parseFloat(inp.value) || 0;
+      await saveExperts();
+      toast('تم حفظ السعر');
+    });
+  });
+  document.querySelectorAll('[data-dur]').forEach(inp=>{
+    inp.addEventListener('change', async ()=>{
+      const val = parseInt(inp.value) || 0;
+      ex.serviceDurations[inp.dataset.dur] = val > 0 ? val : 60;
+      await saveExperts();
+      toast('تم حفظ مدة الخدمة — العميلات سيرين مواعيد مقسّمة حسب هذي المدة');
+    });
+  });
+}
+
+/* ---------------- AVAILABILITY ---------------- */
+function renderAvailability(){
+  const ex = me(); if(!ex) return;
+  ex.workingHours = ex.workingHours || {};
+  document.getElementById('hoursList').innerHTML = WEEKDAY_KEYS.map((k,i)=>{
+    const wh = ex.workingHours[k] || {off:k==='fri', open:'10:00', close:'19:00'};
+    return `<div class="hours-row" data-day="${k}">
+      <span class="day-lbl">${WEEKDAY_LABELS[i]}</span>
+      <span class="off-chip ${wh.off?'active':''}" data-off-toggle="${k}">${wh.off?'عطلة':'تعمل'}</span>
+      <input type="time" data-open="${k}" value="${wh.open||'10:00'}" ${wh.off?'disabled':''}>
+      <span style="font-size:11px;color:var(--muted);">إلى</span>
+      <input type="time" data-close="${k}" value="${wh.close||'19:00'}" ${wh.off?'disabled':''}>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('[data-off-toggle]').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      const k = chip.dataset.offToggle;
+      ex.workingHours[k] = ex.workingHours[k] || {off:false, open:'10:00', close:'19:00'};
+      ex.workingHours[k].off = !ex.workingHours[k].off;
+      renderAvailability();
+    });
+  });
+  document.getElementById('saveHoursBtn').onclick = async ()=>{
+    WEEKDAY_KEYS.forEach(k=>{
+      const openInp = document.querySelector(`[data-open="${k}"]`);
+      const closeInp = document.querySelector(`[data-close="${k}"]`);
+      ex.workingHours[k] = ex.workingHours[k] || {off:false};
+      ex.workingHours[k].open = openInp.value;
+      ex.workingHours[k].close = closeInp.value;
+    });
+    await saveExperts();
+    toast('تم حفظ ساعات العمل');
+  };
+
+  ex.leaveRequests = ex.leaveRequests || [];
+  const hist = document.getElementById('leaveHistory');
+  hist.innerHTML = ex.leaveRequests.length===0 ? '<div class="empty-state">لا توجد طلبات إجازة سابقة</div>' :
+    ex.leaveRequests.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(l=>`
+      <div class="card">
+        <div class="top">
+          <div class="t1">${l.date}</div>
+          <span class="badge ${l.status==='approved'?'approved':'pending'}">${l.status==='approved'?'موافق عليها':'بانتظار موافقة صاحبة المركز'}</span>
+        </div>
+      </div>`).join('');
+}
+document.getElementById('requestLeaveBtn').addEventListener('click', async ()=>{
+  const ex = me();
+  const date = document.getElementById('leaveDate').value;
+  if(!date){ toast('يرجى اختيار تاريخ'); return; }
+  ex.leaveRequests = ex.leaveRequests || [];
+  if(ex.leaveRequests.some(l=>l.date===date)){ toast('يوجد طلب إجازة بهذا التاريخ مسبقاً'); return; }
+  ex.leaveRequests.push({date, status:'pending'});
+  await saveExperts();
+  document.getElementById('leaveDate').value = '';
+  toast('تم إرسال طلب الإجازة لصاحبة المركز');
+  renderAvailability();
+});
+
+/* ---------------- NOTIFICATIONS ---------------- */
+function renderNotifications(){
+  const mine = myBookings();
+  const items = [];
+  mine.filter(b=>b.status==='pending').forEach(b=> items.push(`🔔 طلب حجز جديد من ${b.customerName} — ${b.service} في ${b.date}`));
+  mine.filter(b=>(b.status==='confirmed'||b.status==='in_service')).forEach(b=>{
+    const dt = new Date(b.date+'T'+b.time+':00');
+    const hrs = (dt - new Date())/3600000;
+    if(hrs>=0 && hrs<=3) items.push(`🕐 موعد قريب: ${b.customerName} — ${b.service} الساعة ${b.time}`);
+  });
+  const ex = me();
+  (ex.leaveRequests||[]).filter(l=>l.status==='approved').forEach(l=> items.push(`✅ تمت الموافقة على إجازتك بتاريخ ${l.date}`));
+  document.getElementById('notifList').innerHTML = items.length===0 ? '<div class="empty-state">لا توجد إشعارات جديدة</div>' : items.map(t=>`<div class="card"><div class="t2">${t}</div></div>`).join('');
+}
+
+/* ---------------- REVIEWS ---------------- */
+function renderReviews(){
+  const ex = me(); if(!ex) return;
+  const myReviews = reviews.filter(r=>r.expertId===ex.id);
+  document.getElementById('bigRating').textContent = '⭐ ' + (ex.rating||0).toFixed(1);
+  document.getElementById('bigRatingSub').textContent = myReviews.length + ' تقييم';
+  const wrap = document.getElementById('reviewsList');
+  wrap.innerHTML = myReviews.length===0 ? '<div class="empty-state">لا توجد تقييمات تفصيلية بعد</div>' :
+    myReviews.slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).map(r=>`
+      <div class="card">
+        <div class="top">
+          <div class="t1">${r.customerName||'عميلة'}</div>
+          <span class="badge approved">⭐ ${r.rating}</span>
+        </div>
+        ${r.comment ? `<div class="t2">${r.comment}</div>` : ''}
+      </div>`).join('');
+}
+
+/* ---------------- INIT ---------------- */
+(async function init(){
+  await loadAll();
+  if(staffSession && me()) enterApp();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>صالون — حجز المواعيد</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&display=swap');
+
+:root{
+  --maroon:#6B1F35;
+  --maroon-dark:#4E1526;
+  --rose:#C98CA7;
+  --gold:#C9A227;
+  --blush:#FBF2F0;
+  --card:#FFFFFF;
+  --ink:#2B1620;
+  --muted:#8C5B70;
+  --line:#EEDCE0;
+  --busy:#9B3B49;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--blush);
+  color:var(--ink);
+  font-family:'Tajawal',sans-serif;
+  min-height:100vh;
+}
+h1,h2,h3,.brand,.stylist-name{font-family:'Cairo',sans-serif;}
+.app{max-width:480px;margin:0 auto;min-height:100vh;background:var(--blush);position:relative;padding-bottom:32px;}
+
+header{
+  background:linear-gradient(135deg,var(--maroon) 0%,var(--maroon-dark) 100%);
+  color:#fff;
+  padding:22px 20px 26px;
+  border-radius:0 0 28px 28px;
+  position:relative;
+  overflow:hidden;
+}
+header::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:radial-gradient(circle at 85% -10%, rgba(201,162,39,0.35), transparent 55%);
+  pointer-events:none;
+}
+.brand{font-size:22px;font-weight:800;margin:0;position:relative;}
+.brand-sub{font-size:13px;color:#F0D9E1;margin-top:4px;position:relative;opacity:.9;}
+
+.role-toggle{
+  display:flex;
+  background:rgba(255,255,255,0.14);
+  border-radius:14px;
+  padding:4px;
+  margin-top:16px;
+  position:relative;
+}
+.role-toggle button{
+  flex:1;
+  padding:10px 8px;
+  border:none;
+  background:transparent;
+  color:#F5E4EA;
+  font-family:'Tajawal',sans-serif;
+  font-weight:700;
+  font-size:14px;
+  border-radius:11px;
+  cursor:pointer;
+  transition:all .25s ease;
+}
+.role-toggle button.active{
+  background:var(--gold);
+  color:var(--maroon-dark);
+}
+
+main{padding:18px 18px 4px;}
+section{display:none;}
+section.visible{display:block;}
+
+.section-title{
+  font-size:16px;
+  font-weight:800;
+  margin:6px 2px 12px;
+  color:var(--maroon-dark);
+}
+
+.stylist-card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:14px;
+  margin-bottom:12px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  box-shadow:0 2px 10px rgba(107,31,53,0.05);
+}
+.avatar{
+  width:52px;height:52px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Cairo',sans-serif;font-weight:800;font-size:19px;color:#fff;
+  flex-shrink:0;position:relative;
+}
+.pulse-dot{
+  position:absolute;bottom:-1px;left:-1px;
+  width:14px;height:14px;border-radius:50%;
+  border:2.5px solid var(--card);
+  background:var(--busy);
+}
+.pulse-dot.free{background:var(--gold);}
+.pulse-dot.free::after{
+  content:"";position:absolute;inset:-3px;border-radius:50%;
+  border:2px solid var(--gold);opacity:.6;
+  animation:pulse 1.8s ease-out infinite;
+}
+@keyframes pulse{
+  0%{transform:scale(0.6);opacity:.7;}
+  100%{transform:scale(1.9);opacity:0;}
+}
+@media (prefers-reduced-motion: reduce){
+  .pulse-dot.free::after{animation:none;}
+}
+.stylist-info{flex:1;min-width:0;}
+.stylist-name{font-size:15.5px;font-weight:700;margin:0;display:inline;}
+.type-tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--line);color:var(--maroon-dark);margin-inline-start:6px;vertical-align:middle;}
+.stylist-spec{font-size:12.5px;color:var(--muted);margin-top:3px;}
+.provider-meta{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.6;}
+.provider-meta a{color:var(--maroon);text-decoration:none;direction:ltr;display:inline-block;}
+.provider-desc{font-size:12px;color:var(--ink);margin-top:5px;line-height:1.55;}
+.status-badge{
+  display:inline-block;margin-top:6px;font-size:11.5px;font-weight:700;
+  padding:3px 9px;border-radius:20px;
+}
+.status-badge.free{background:#F6EAC8;color:#8A6D0E;}
+.status-badge.busy{background:#F2DEE1;color:var(--busy);}
+
+.type-filter{display:flex;gap:8px;margin-bottom:14px;}
+.type-chip{
+  flex:1;text-align:center;padding:9px 6px;border-radius:14px;border:1.5px solid var(--line);
+  background:#fff;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ink);
+}
+.type-chip.active{background:var(--maroon);border-color:var(--maroon);color:#fff;}
+
+.book-btn{
+  border:none;background:var(--maroon);color:#fff;
+  font-family:'Tajawal',sans-serif;font-weight:700;font-size:13px;
+  padding:9px 14px;border-radius:12px;cursor:pointer;flex-shrink:0;
+  transition:opacity .2s;
+}
+.book-btn:active{opacity:.75;}
+
+/* Booking modal */
+.overlay{
+  position:fixed;inset:0;background:rgba(43,22,32,0.55);
+  display:none;align-items:flex-end;justify-content:center;z-index:50;
+}
+.overlay.visible{display:flex;}
+.sheet{
+  background:var(--blush);width:100%;max-width:480px;
+  border-radius:24px 24px 0 0;padding:20px 18px 24px;
+  max-height:88vh;overflow-y:auto;
+}
+.sheet h3{margin:0 0 4px;font-size:17px;color:var(--maroon-dark);}
+.sheet .sub{font-size:12.5px;color:var(--muted);margin-bottom:14px;}
+
+.day-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;}
+.day-chip{
+  flex-shrink:0;border:1.5px solid var(--line);background:#fff;
+  border-radius:14px;padding:8px 12px;text-align:center;cursor:pointer;
+  font-size:12.5px;font-weight:700;color:var(--ink);min-width:56px;
+}
+.day-chip.active{background:var(--maroon);border-color:var(--maroon);color:#fff;}
+.day-chip .d{display:block;font-size:11px;font-weight:500;opacity:.75;margin-top:2px;}
+
+.slot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}
+.slot{
+  border:1.5px solid var(--line);background:#fff;border-radius:12px;
+  padding:9px 4px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink);
+}
+.slot.taken{opacity:.35;text-decoration:line-through;cursor:not-allowed;color:var(--muted);}
+.slot.active{background:var(--gold);border-color:var(--gold);color:var(--maroon-dark);}
+.empty-note{font-size:12.5px;color:var(--muted);padding:10px 2px;}
+
+label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin:10px 2px 5px;}
+input,select{
+  width:100%;border:1.5px solid var(--line);border-radius:12px;
+  padding:11px 12px;font-family:'Tajawal',sans-serif;font-size:14px;background:#fff;color:var(--ink);
+}
+input:focus,select:focus{outline:2px solid var(--gold);border-color:var(--gold);}
+
+.confirm-btn{
+  width:100%;margin-top:18px;border:none;background:var(--maroon);color:#fff;
+  font-family:'Cairo',sans-serif;font-weight:700;font-size:15px;padding:13px;border-radius:14px;cursor:pointer;
+}
+.confirm-btn:disabled{opacity:.45;cursor:not-allowed;}
+.close-x{position:absolute;left:16px;top:14px;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;}
+
+/* Stylist view */
+.who-select{margin-bottom:16px;}
+.avail-toggle-card{
+  background:var(--card);border:1px solid var(--line);border-radius:18px;
+  padding:16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;
+}
+.switch{
+  width:50px;height:28px;border-radius:20px;background:var(--line);position:relative;cursor:pointer;flex-shrink:0;transition:background .2s;
+}
+.switch.on{background:var(--gold);}
+.switch::after{
+  content:"";position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:#fff;
+  transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);
+}
+.switch.on::after{transform:translateX(-22px);}
+
+.booking-item{
+  background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:13px 14px;margin-bottom:10px;
+}
+.booking-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.booking-time{font-family:'Cairo',sans-serif;font-weight:800;color:var(--maroon-dark);font-size:14px;}
+.booking-service{font-size:12.5px;color:var(--muted);}
+.booking-cust{font-size:13.5px;font-weight:700;margin-top:4px;}
+.booking-phone{font-size:12px;color:var(--muted);direction:ltr;display:inline-block;}
+.cancel-link{background:none;border:none;color:var(--busy);font-size:12.5px;font-weight:700;cursor:pointer;padding:0;}
+
+.add-stylist{
+  border:1.5px dashed var(--rose);border-radius:16px;padding:14px;margin-bottom:16px;background:#fff8f9;
+}
+.add-stylist input{margin-bottom:8px;}
+.add-stylist button{
+  border:none;background:var(--rose);color:#fff;font-weight:700;font-size:13px;
+  padding:9px 14px;border-radius:10px;cursor:pointer;width:100%;
+}
+
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  background:var(--maroon-dark);color:#fff;padding:12px 20px;border-radius:14px;
+  font-size:13.5px;font-weight:700;z-index:100;opacity:0;pointer-events:none;transition:opacity .3s, bottom .3s;
+  box-shadow:0 6px 20px rgba(0,0,0,0.25);
+}
+.toast.show{opacity:1;bottom:34px;}
+.loading{text-align:center;padding:40px 0;color:var(--muted);font-size:13px;}
+.empty-state{text-align:center;padding:30px 10px;color:var(--muted);font-size:13.5px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <p class="brand">صالون الوردة الذهبية</p>
+    <p class="brand-sub">احجزي موعدك في لحظة</p>
+    <div class="role-toggle">
+      <button id="tabCustomer" class="active">أنا عميلة</button>
+      <button id="tabStylist">أنا مقدمة خدمة</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="customerView" class="visible">
+      <p class="section-title">المتخصصات المتاحات</p>
+      <div class="type-filter">
+        <div class="type-chip active" data-type="all">الكل</div>
+        <div class="type-chip" data-type="hair">هير ستايلست</div>
+        <div class="type-chip" data-type="makeup">ميك اب ارتست</div>
+      </div>
+      <div id="stylistList"><div class="loading">جارِ التحميل…</div></div>
+    </section>
+
+    <section id="stylistView">
+      <label>أنا</label>
+      <select id="whoSelect" class="who-select"></select>
+
+      <div class="avail-toggle-card">
+        <div>
+          <div style="font-weight:700;font-size:14.5px;" id="availLabel">متفرغة الآن</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">تظهر هذه الحالة للعميلات فوراً</div>
+        </div>
+        <div class="switch" id="availSwitch"></div>
+      </div>
+
+      <p class="section-title">مواعيدك القادمة</p>
+      <div id="bookingsList"></div>
+
+      <div class="add-stylist">
+        <label style="margin-top:0;">إضافة مقدمة خدمة جديدة إلى الصالون</label>
+        <select id="newStylistType">
+          <option value="hair">هير ستايلست</option>
+          <option value="makeup">ميك اب ارتست</option>
+        </select>
+        <div style="height:8px;"></div>
+        <select id="newStylistCategory"></select>
+        <div style="height:8px;"></div>
+        <input id="newStylistName" placeholder="الاسم">
+        <input id="newStylistLocation" placeholder="المكان (مثال: الفرع الرئيسي - بنغازي)">
+        <input id="newStylistPhone" placeholder="رقم الهاتف" type="tel">
+        <input id="newStylistDesc" placeholder="الوصف بالضبط (خبرات، مميزات...)">
+        <button id="addStylistBtn">إضافة</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="overlay" id="bookOverlay">
+  <div class="sheet">
+    <button class="close-x" id="closeSheet">✕</button>
+    <h3 id="sheetStylistName">حجز موعد</h3>
+    <p class="sub" id="sheetStylistSpec"></p>
+    <p class="sub" id="sheetStylistLocation" style="margin-top:-10px;"></p>
+
+    <div class="day-scroll" id="dayScroll"></div>
+    <div class="slot-grid" id="slotGrid"></div>
+
+    <label>الاسم</label>
+    <input id="custName" placeholder="اسمك الكامل">
+    <label>رقم الهاتف</label>
+    <input id="custPhone" placeholder="09xxxxxxxx" type="tel">
+    <label>الخدمة</label>
+    <select id="custService">
+      <option>قص شعر</option>
+      <option>صبغة</option>
+      <option>تسريحة</option>
+      <option>مكياج</option>
+      <option>عناية بالبشرة</option>
+    </select>
+
+    <button class="confirm-btn" id="confirmBtn" disabled>تأكيد الحجز</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS = ['#6B1F35','#C98CA7','#C9A227','#8C5B70','#9B3B49','#4E1526'];
+const WEEKDAYS = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const START_HOUR = 10, END_HOUR = 19; // last slot starts at 19 (1hr apt)
+
+const TYPE_LABELS = { hair:'هير ستايلست', makeup:'ميك اب ارتست' };
+const CATEGORIES = {
+  hair: ['فتلة وحواجب', 'قص شعر واستشوار', 'تسريحات'],
+  makeup: ['ميك اب خفيف بناتي', 'ميك اب ثقيل', 'الاثنين']
+};
+
+let stylists = [];
+let bookings = [];
+let currentStylistId = null;
+let selectedDate = null;
+let selectedTime = null;
+let bookingStylist = null;
+let activeTypeFilter = 'all';
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function dateKey(d){
+  return d.toISOString().slice(0,10);
+}
+
+async function loadData(){
+  try{
+    const s = await window.storage.get('stylists', true);
+    stylists = s ? JSON.parse(s.value) : null;
+  }catch(e){ stylists = null; }
+  if(!stylists){
+    stylists = [
+      {id:'s1', name:'سارة', type:'hair', category:'قص شعر واستشوار', location:'الفرع الرئيسي', phone:'0910000001', description:'خبرة 6 سنوات في القص والاستشوار للشعر الناعم والكيرلي', color:COLORS[0], available:true},
+      {id:'s2', name:'ليلى', type:'hair', category:'فتلة وحواجب', location:'الفرع الرئيسي', phone:'0910000002', description:'متخصصة في الفتلة والحواجب بخيط طبيعي بدون مواد كيميائية', color:COLORS[1], available:false},
+      {id:'s3', name:'نور', type:'hair', category:'تسريحات', location:'فرع بنينا', phone:'0910000003', description:'تسريحات مناسبات وأعراس بلمسة عصرية', color:COLORS[2], available:true},
+      {id:'s4', name:'رنا', type:'makeup', category:'الاثنين', location:'الفرع الرئيسي', phone:'0910000004', description:'ميك اب ارتست معتمدة، خفيف للمناسبات اليومية وثقيل للأعراس', color:COLORS[4], available:false},
+    ];
+    await saveStylists();
+  }
+  try{
+    const b = await window.storage.get('bookings', true);
+    bookings = b ? JSON.parse(b.value) : [];
+  }catch(e){ bookings = []; }
+  currentStylistId = stylists[0]?.id || null;
+}
+
+async function saveStylists(){
+  try{ await window.storage.set('stylists', JSON.stringify(stylists), true); }
+  catch(e){ toast('تعذر حفظ البيانات'); }
+}
+async function saveBookings(){
+  try{ await window.storage.set('bookings', JSON.stringify(bookings), true); }
+  catch(e){ toast('تعذر حفظ الحجز'); }
+}
+
+function initial(name){ return name.trim().charAt(0); }
+
+function renderStylistList(){
+  const wrap = document.getElementById('stylistList');
+  const list = activeTypeFilter === 'all' ? stylists : stylists.filter(s=>s.type===activeTypeFilter);
+  if(list.length === 0){
+    wrap.innerHTML = '<div class="empty-state">لا توجد مقدمات خدمة في هذه الفئة بعد</div>';
+    return;
+  }
+  wrap.innerHTML = list.map(st => `
+    <div class="stylist-card">
+      <div class="avatar" style="background:${st.color}">
+        ${initial(st.name)}
+        <span class="pulse-dot ${st.available ? 'free' : ''}"></span>
+      </div>
+      <div class="stylist-info">
+        <span class="stylist-name">${st.name}</span>
+        <span class="type-tag">${TYPE_LABELS[st.type] || ''}</span>
+        <p class="stylist-spec">${st.category || ''}</p>
+        <p class="provider-meta">📍 ${st.location || ''}${st.phone ? ' &nbsp;·&nbsp; <a href="tel:'+st.phone+'">'+st.phone+'</a>' : ''}</p>
+        ${st.description ? `<p class="provider-desc">${st.description}</p>` : ''}
+        <span class="status-badge ${st.available ? 'free' : 'busy'}">${st.available ? 'متفرغة الآن' : 'مشغولة حالياً'}</span>
+      </div>
+      <button class="book-btn" data-id="${st.id}">حجز</button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.book-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> openBookingSheet(btn.dataset.id));
+  });
+}
+
+document.querySelectorAll('.type-chip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    document.querySelectorAll('.type-chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    activeTypeFilter = chip.dataset.type;
+    renderStylistList();
+  });
+});
+
+function openBookingSheet(stylistId){
+  bookingStylist = stylists.find(s=>s.id===stylistId);
+  if(!bookingStylist) return;
+  document.getElementById('sheetStylistName').textContent = 'حجز موعد مع ' + bookingStylist.name + ' (' + TYPE_LABELS[bookingStylist.type] + ')';
+  document.getElementById('sheetStylistSpec').textContent = bookingStylist.category;
+  document.getElementById('sheetStylistLocation').textContent = '📍 ' + (bookingStylist.location || '');
+  document.getElementById('custName').value = '';
+  document.getElementById('custPhone').value = '';
+  selectedDate = null; selectedTime = null;
+  renderDayScroll();
+  document.getElementById('slotGrid').innerHTML = '<div class="empty-note">اختاري يوماً لعرض الأوقات المتاحة</div>';
+  updateConfirmState();
+  document.getElementById('bookOverlay').classList.add('visible');
+}
+
+function renderDayScroll(){
+  const scroll = document.getElementById('dayScroll');
+  const days = [];
+  const today = new Date();
+  for(let i=0;i<7;i++){
+    const d = new Date(today);
+    d.setDate(today.getDate()+i);
+    days.push(d);
+  }
+  scroll.innerHTML = days.map((d,i)=>`
+    <div class="day-chip" data-key="${dateKey(d)}">
+      ${i===0 ? 'اليوم' : WEEKDAYS[d.getDay()]}
+      <span class="d">${d.getDate()}/${d.getMonth()+1}</span>
+    </div>
+  `).join('');
+  scroll.querySelectorAll('.day-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      scroll.querySelectorAll('.day-chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      selectedDate = chip.dataset.key;
+      selectedTime = null;
+      renderSlotGrid();
+      updateConfirmState();
+    });
+  });
+}
+
+function renderSlotGrid(){
+  const grid = document.getElementById('slotGrid');
+  if(!selectedDate){ grid.innerHTML = '<div class="empty-note">اختاري يوماً لعرض الأوقات المتاحة</div>'; return; }
+  const takenTimes = bookings
+    .filter(b => b.stylistId === bookingStylist.id && b.date === selectedDate && b.status !== 'cancelled')
+    .map(b => b.time);
+  let html = '';
+  for(let h=START_HOUR; h<=END_HOUR; h++){
+    const label = (h%12===0?12:h%12) + ':00 ' + (h<12?'ص':'م');
+    const timeVal = String(h).padStart(2,'0')+':00';
+    const isTaken = takenTimes.includes(timeVal);
+    html += `<div class="slot ${isTaken?'taken':''}" data-time="${timeVal}">${label}</div>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('.slot:not(.taken)').forEach(slot=>{
+    slot.addEventListener('click', ()=>{
+      grid.querySelectorAll('.slot').forEach(s=>s.classList.remove('active'));
+      slot.classList.add('active');
+      selectedTime = slot.dataset.time;
+      updateConfirmState();
+    });
+  });
+}
+
+function updateConfirmState(){
+  const name = document.getElementById('custName').value.trim();
+  const phone = document.getElementById('custPhone').value.trim();
+  const ok = selectedDate && selectedTime && name.length>0 && phone.length>0;
+  document.getElementById('confirmBtn').disabled = !ok;
+}
+
+document.getElementById('custName').addEventListener('input', updateConfirmState);
+document.getElementById('custPhone').addEventListener('input', updateConfirmState);
+
+document.getElementById('confirmBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('custName').value.trim();
+  const phone = document.getElementById('custPhone').value.trim();
+  const service = document.getElementById('custService').value;
+  const booking = {
+    id: Date.now()+'-'+Math.random().toString(36).slice(2,7),
+    stylistId: bookingStylist.id,
+    stylistName: bookingStylist.name,
+    customerName: name,
+    phone, service,
+    date: selectedDate,
+    time: selectedTime,
+    status:'confirmed'
+  };
+  bookings.push(booking);
+  await saveBookings();
+  document.getElementById('bookOverlay').classList.remove('visible');
+  toast('تم تأكيد حجزك مع ' + bookingStylist.name + ' ✓');
+  renderStylistList();
+});
+
+document.getElementById('closeSheet').addEventListener('click', ()=>{
+  document.getElementById('bookOverlay').classList.remove('visible');
+});
+
+// ---- Stylist view ----
+function renderWhoSelect(){
+  const sel = document.getElementById('whoSelect');
+  sel.innerHTML = stylists.map(s=>`<option value="${s.id}">${s.name} — ${TYPE_LABELS[s.type]} (${s.category})</option>`).join('');
+  if(currentStylistId) sel.value = currentStylistId;
+}
+
+function populateCategorySelect(){
+  const type = document.getElementById('newStylistType').value;
+  const catSel = document.getElementById('newStylistCategory');
+  catSel.innerHTML = CATEGORIES[type].map(c=>`<option value="${c}">${c}</option>`).join('');
+}
+document.getElementById('newStylistType').addEventListener('change', populateCategorySelect);
+
+document.getElementById('whoSelect').addEventListener('change', (e)=>{
+  currentStylistId = e.target.value;
+  renderAvailToggle();
+  renderBookingsList();
+});
+
+function renderAvailToggle(){
+  const st = stylists.find(s=>s.id===currentStylistId);
+  if(!st) return;
+  const sw = document.getElementById('availSwitch');
+  sw.classList.toggle('on', !!st.available);
+  document.getElementById('availLabel').textContent = st.available ? 'متفرغة الآن' : 'غير متفرغة حالياً';
+}
+
+document.getElementById('availSwitch').addEventListener('click', async ()=>{
+  const st = stylists.find(s=>s.id===currentStylistId);
+  if(!st) return;
+  st.available = !st.available;
+  await saveStylists();
+  renderAvailToggle();
+  renderStylistList();
+  toast(st.available ? 'أصبحتِ متفرغة الآن' : 'تم تحديدك كغير متفرغة');
+});
+
+function renderBookingsList(){
+  const wrap = document.getElementById('bookingsList');
+  const mine = bookings
+    .filter(b => b.stylistId === currentStylistId && b.status !== 'cancelled')
+    .sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+  if(mine.length===0){
+    wrap.innerHTML = '<div class="empty-state">لا توجد مواعيد محجوزة حالياً</div>';
+    return;
+  }
+  wrap.innerHTML = mine.map(b=>{
+    const [y,m,d] = b.date.split('-');
+    return `
+    <div class="booking-item" data-id="${b.id}">
+      <div class="booking-top">
+        <span class="booking-time">${d}/${m} — ${b.time}</span>
+        <button class="cancel-link" data-id="${b.id}">إلغاء</button>
+      </div>
+      <div class="booking-service">${b.service}</div>
+      <div class="booking-cust">${b.customerName}</div>
+      <div class="booking-phone">${b.phone}</div>
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('.cancel-link').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const b = bookings.find(x=>x.id===btn.dataset.id);
+      if(b){ b.status='cancelled'; await saveBookings(); renderBookingsList(); toast('تم إلغاء الموعد'); }
+    });
+  });
+}
+
+document.getElementById('addStylistBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('newStylistName').value.trim();
+  const type = document.getElementById('newStylistType').value;
+  const category = document.getElementById('newStylistCategory').value;
+  const location = document.getElementById('newStylistLocation').value.trim();
+  const phone = document.getElementById('newStylistPhone').value.trim();
+  const description = document.getElementById('newStylistDesc').value.trim();
+  if(!name){ toast('يرجى إدخال الاسم'); return; }
+  if(!phone){ toast('يرجى إدخال رقم الهاتف'); return; }
+  const st = {
+    id: 's'+Date.now(),
+    name, type, category,
+    location: location || 'الفرع الرئيسي',
+    phone, description,
+    color: COLORS[stylists.length % COLORS.length],
+    available: true
+  };
+  stylists.push(st);
+  await saveStylists();
+  document.getElementById('newStylistName').value='';
+  document.getElementById('newStylistLocation').value='';
+  document.getElementById('newStylistPhone').value='';
+  document.getElementById('newStylistDesc').value='';
+  renderStylistList();
+  renderWhoSelect();
+  toast('تمت إضافة ' + name + ' إلى الصالون');
+});
+
+// ---- Tabs ----
+document.getElementById('tabCustomer').addEventListener('click', ()=>{
+  document.getElementById('tabCustomer').classList.add('active');
+  document.getElementById('tabStylist').classList.remove('active');
+  document.getElementById('customerView').classList.add('visible');
+  document.getElementById('stylistView').classList.remove('visible');
+});
+document.getElementById('tabStylist').addEventListener('click', ()=>{
+  document.getElementById('tabStylist').classList.add('active');
+  document.getElementById('tabCustomer').classList.remove('active');
+  document.getElementById('stylistView').classList.add('visible');
+  document.getElementById('customerView').classList.remove('visible');
+});
+
+// ---- Init ----
+(async function init(){
+  populateCategorySelect();
+  await loadData();
+  renderStylistList();
+  renderWhoSelect();
+  renderAvailToggle();
+  renderBookingsList();
+})();
+</script>
+</body>
+</html>

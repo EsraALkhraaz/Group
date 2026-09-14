@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<script src="glowspot-storage-polyfill.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GlowSpot Business — لوحة تحكم المركز</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&family=Playfair+Display:wght@700;800&display=swap');
+
+:root{
+  --maroon:#B36270;
+  --maroon-dark:#8B4B56;
+  --rose:#D9A3AC;
+  --gold:#B36270;
+  --blush:#FFFAFA;
+  --card:#FFFFFF;
+  --ink:#333333;
+  --muted:#8F8888;
+  --line:#E5DFDF;
+  --busy:#8F8888;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--blush);color:var(--ink);font-family:'Tajawal',sans-serif;min-height:100vh;}
+h1,h2,h3,.brand,.name{font-family:'Cairo',sans-serif;}
+.app{max-width:480px;margin:0 auto;min-height:100vh;background:var(--blush);position:relative;padding-bottom:32px;}
+
+header{
+  background:linear-gradient(135deg,var(--maroon) 0%,var(--maroon-dark) 100%);
+  color:#fff;padding:20px 20px 22px;border-radius:0 0 26px 26px;position:relative;overflow:hidden;
+}
+header::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 85% -10%, rgba(201,162,39,0.35), transparent 55%);pointer-events:none;}
+.brand{font-family:'Playfair Display',serif;font-size:25px;font-weight:800;margin:0;position:relative;letter-spacing:.01em;}
+.brand-sub{font-size:12.5px;color:#F3E1E4;margin-top:3px;position:relative;opacity:.9;}
+
+.role-toggle{display:flex;background:rgba(255,255,255,0.16);border-radius:14px;padding:4px;margin-top:14px;position:relative;}
+.role-toggle button{flex:1;padding:10px 6px;border:none;background:transparent;color:#F3E1E4;font-family:'Tajawal',sans-serif;font-weight:700;font-size:13.5px;border-radius:11px;cursor:pointer;transition:all .25s ease;}
+.role-toggle button.active{background:var(--gold);color:var(--maroon-dark);}
+
+main{padding:16px 16px 4px;}
+section{display:none;}
+section.visible{display:block;}
+.hidden{display:none !important;}
+
+.section-title{font-size:15.5px;font-weight:800;margin:6px 2px 12px;color:var(--maroon-dark);}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--rose);margin:0 2px 4px;text-transform:uppercase;}
+
+/* search + city chips */
+.search-box{position:relative;margin-bottom:12px;}
+.search-box input{width:100%;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;font-family:'Tajawal',sans-serif;font-size:14px;background:#fff;}
+.city-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:16px;}
+.city-chip{flex-shrink:0;border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink);}
+.city-chip.active{background:var(--maroon);border-color:var(--maroon);color:#fff;}
+
+/* center card */
+.center-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 2px 10px rgba(107,31,53,0.05);cursor:pointer;}
+.center-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.center-name{font-size:16px;font-weight:800;margin:0;}
+.verified{color:var(--gold);font-size:12px;font-weight:700;margin-inline-start:4px;}
+.rating{font-size:12.5px;font-weight:700;color:#8B4B56;background:#F3E1E4;padding:2px 9px;border-radius:20px;white-space:nowrap;}
+.center-loc{font-size:12.5px;color:var(--muted);margin-top:4px;}
+.dept-row{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+.dept-pill{font-size:11.5px;background:var(--line);color:var(--maroon-dark);padding:4px 9px;border-radius:20px;font-weight:700;}
+.view-link{font-size:12.5px;font-weight:700;color:var(--maroon);margin-top:10px;display:inline-block;}
+
+/* back bar */
+.back-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;color:var(--maroon-dark);font-weight:700;font-size:13.5px;}
+
+/* center detail */
+.detail-header{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:16px;}
+.detail-header .center-name{font-size:19px;}
+.about-text{font-size:13px;color:var(--ink);line-height:1.7;margin-top:10px;}
+.book-cta{width:100%;margin-top:14px;border:none;background:var(--maroon);color:#fff;font-family:'Cairo',sans-serif;font-weight:700;font-size:15px;padding:13px;border-radius:14px;cursor:pointer;}
+.dept-filter{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+.dept-filter .dept-pill{
+  display:flex;align-items:center;gap:12px;
+  background:linear-gradient(135deg,var(--rose), var(--maroon));
+  color:#fff;border-radius:18px;padding:16px 18px;font-size:14.5px;font-weight:800;
+  cursor:pointer;border:2px solid transparent;flex-shrink:1;
+}
+.dept-filter .dept-pill.active{border-color:var(--gold);box-shadow:0 4px 14px rgba(124,90,61,0.25);}
+
+.package-card{background:linear-gradient(135deg,#fff, #F7EEDF);border:1px solid var(--line);border-radius:16px;padding:13px 14px;margin-bottom:10px;}
+.package-top{display:flex;justify-content:space-between;align-items:center;}
+.package-name{font-weight:800;font-size:14.5px;color:var(--maroon-dark);}
+.package-price{font-weight:800;font-size:14px;color:var(--gold);background:#fff;padding:3px 10px;border-radius:10px;}
+.package-items{font-size:12px;color:var(--muted);margin-top:5px;}
+.package-btn{margin-top:10px;border:none;background:var(--rose);color:#fff;font-weight:700;font-size:12.5px;padding:8px 12px;border-radius:10px;cursor:pointer;}
+
+.expert-group-label{font-size:13px;font-weight:800;color:var(--maroon-dark);margin:14px 2px 8px;}
+.expert-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:11px;}
+.avatar{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cairo',sans-serif;font-weight:800;font-size:17px;color:#fff;flex-shrink:0;position:relative;}
+.pulse-dot{position:absolute;bottom:-1px;left:-1px;width:13px;height:13px;border-radius:50%;border:2.5px solid var(--card);background:var(--busy);}
+.pulse-dot.free{background:var(--gold);}
+.pulse-dot.free::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:2px solid var(--gold);opacity:.6;animation:pulse 1.8s ease-out infinite;}
+@keyframes pulse{0%{transform:scale(0.6);opacity:.7;}100%{transform:scale(1.9);opacity:0;}}
+@media (prefers-reduced-motion: reduce){.pulse-dot.free::after{animation:none;}}
+.expert-info{flex:1;min-width:0;}
+.expert-name{font-size:14.5px;font-weight:700;}
+.expert-spec{font-size:12px;color:var(--muted);margin-top:2px;}
+.expert-rating{font-size:11.5px;color:#8B4B56;font-weight:700;margin-top:2px;}
+.expert-book-btn{border:none;background:var(--maroon);color:#fff;font-weight:700;font-size:12.5px;padding:8px 12px;border-radius:11px;cursor:pointer;flex-shrink:0;}
+
+.empty-state{text-align:center;padding:26px 10px;color:var(--muted);font-size:13px;}
+.loading{text-align:center;padding:40px 0;color:var(--muted);font-size:13px;}
+
+/* booking overlay */
+.overlay{position:fixed;inset:0;background:rgba(43,22,32,0.55);display:none;align-items:flex-end;justify-content:center;z-index:60;}
+.overlay.visible{display:flex;}
+.sheet{background:var(--blush);width:100%;max-width:480px;border-radius:24px 24px 0 0;padding:20px 18px 24px;max-height:90vh;overflow-y:auto;position:relative;}
+.sheet h3{margin:0 0 4px;font-size:16.5px;color:var(--maroon-dark);}
+.sheet .sub{font-size:12px;color:var(--muted);margin-bottom:12px;}
+.close-x{position:absolute;left:16px;top:14px;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;}
+.step-label{font-size:12px;font-weight:700;color:var(--muted);margin:12px 2px 6px;}
+.chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
+.pick-chip{border:1.5px solid var(--line);background:#fff;border-radius:13px;padding:8px 13px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ink);}
+.pick-chip.active{background:var(--gold);border-color:var(--gold);color:#fff;}
+
+.expert-pick-row{display:flex;gap:16px;overflow-x:auto;padding:2px 2px 8px;}
+.expert-pick-item{flex-shrink:0;text-align:center;cursor:pointer;width:62px;}
+.expert-pick-avatar{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cairo',sans-serif;font-weight:800;font-size:19px;color:#fff;margin:0 auto;border:3px solid transparent;}
+.expert-pick-item.active .expert-pick-avatar{border-color:var(--gold);}
+.expert-pick-name{font-size:11.5px;font-weight:700;margin-top:6px;color:var(--ink);}
+.expert-pick-stars{font-size:10px;color:var(--gold);margin-top:2px;letter-spacing:1px;}
+.day-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;}
+.day-chip{flex-shrink:0;text-align:center;cursor:pointer;min-width:46px;}
+.day-num{width:42px;height:42px;border-radius:50%;background:#fff;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:var(--ink);margin:0 auto;}
+.day-chip.active .day-num{background:var(--maroon);border-color:var(--maroon);color:#fff;}
+.day-chip .d{display:block;font-size:10.5px;color:var(--muted);font-weight:600;margin-top:5px;}
+.slot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;}
+.slot{aspect-ratio:1/1;border-radius:50%;border:1.5px solid var(--line);background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;}
+.slot-hour{font-size:14px;font-weight:800;color:var(--ink);line-height:1;}
+.slot-ampm{font-size:9px;color:var(--muted);margin-top:2px;}
+.slot.taken{opacity:.35;cursor:not-allowed;}
+.slot.active{background:var(--maroon);border-color:var(--maroon);}
+.slot.active .slot-hour,.slot.active .slot-ampm{color:#fff;}
+.note{font-size:12px;color:var(--muted);padding:6px 2px;}
+
+label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:10px 2px 5px;}
+input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;font-family:'Tajawal',sans-serif;font-size:13.5px;background:#fff;color:var(--ink);}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-color:var(--gold);}
+.confirm-btn{width:100%;margin-top:16px;border:none;background:var(--maroon);color:#fff;font-family:'Cairo',sans-serif;font-weight:700;font-size:15px;padding:13px;border-radius:14px;cursor:pointer;}
+.confirm-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+/* dashboard */
+.dash-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:15px;margin-bottom:14px;}
+.dash-card h4{margin:0 0 10px;font-size:14px;font-weight:800;color:var(--maroon-dark);}
+.toggle-pill{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:#fff;border-radius:13px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;margin:0 4px 8px 0;color:var(--ink);}
+.toggle-pill.active{background:var(--maroon);border-color:var(--maroon);color:#fff;}
+.list-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
+.list-row:last-child{border-bottom:none;}
+.list-row .main{flex:1;min-width:0;}
+.list-row .main .t1{font-weight:700;font-size:13.5px;}
+.list-row .main .t2{font-size:11.5px;color:var(--muted);margin-top:1px;}
+.mini-switch{width:40px;height:22px;border-radius:20px;background:var(--line);position:relative;cursor:pointer;flex-shrink:0;transition:background .2s;}
+.mini-switch.on{background:var(--gold);}
+.mini-switch::after{content:"";position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s;}
+.mini-switch.on::after{transform:translateX(-18px);}
+.icon-btn{background:none;border:none;color:var(--busy);font-size:12.5px;font-weight:700;cursor:pointer;flex-shrink:0;}
+.add-form input,.add-form select,.add-form textarea{margin-bottom:8px;}
+.add-form button{border:none;background:var(--rose);color:#fff;font-weight:700;font-size:13px;padding:9px 14px;border-radius:10px;cursor:pointer;width:100%;margin-top:2px;}
+.dash-select{margin-bottom:16px;}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--maroon-dark);color:#fff;padding:12px 20px;border-radius:14px;font-size:13.5px;font-weight:700;z-index:100;opacity:0;pointer-events:none;transition:opacity .3s, bottom .3s;box-shadow:0 6px 20px rgba(0,0,0,0.25);}
+.toast.show{opacity:1;bottom:34px;}
+#viewGate{padding:40px 24px;}
+.gate-brand{font-family:'Playfair Display',serif;font-size:30px;color:var(--maroon-dark);text-align:center;margin:20px 0 4px;}
+.gate-sub{font-size:13px;color:var(--muted);text-align:center;margin-bottom:26px;}
+.gate-note{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.6;text-align:center;}
+.demo-creds{background:#FFFCF3;border:1px dashed var(--gold);border-radius:10px;padding:10px 12px;margin-top:14px;font-size:11.5px;color:var(--ink);line-height:1.8;text-align:right;}
+.demo-creds strong{color:#8A6D0E;}
+.logout-btn{width:100%;border:1.5px solid #B85450;background:#fff;color:#B85450;font-weight:700;font-size:13px;padding:10px;border-radius:12px;cursor:pointer;margin-bottom:16px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <section id="viewGate" class="visible">
+    <p class="gate-brand">GlowSpot <span style="font-size:15px;">لأصحاب المراكز</span></p>
+    <p class="gate-sub">سجّلي دخولك لإدارة مركزك</p>
+    <label>اسم المستخدم</label>
+    <input id="centerUsername" placeholder="اسم المستخدم">
+    <label>كلمة المرور</label>
+    <input id="centerPassword" type="password" placeholder="••••••••">
+    <button class="confirm-btn" id="gateBtn" style="width:100%;margin-top:16px;border:none;background:var(--maroon);color:#fff;font-family:'Cairo',sans-serif;font-weight:700;font-size:15px;padding:13px;border-radius:14px;cursor:pointer;">تسجيل الدخول</button>
+    <p class="gate-note">تحصلين على اسم المستخدم وكلمة المرور من إدارة GlowSpot عند اعتماد مركزك. لا يمكن إنشاء مركز جديد من هنا مباشرة.</p>
+    <div class="demo-creds">
+      <strong>للدخول السريع (تجريبي):</strong><br>
+      glowbeauty / center123 — Glow Beauty Center<br>
+      royalbeauty / center123 — Royal Beauty Center<br>
+      lunaspa / center123 — Luna Spa
+    </div>
+  </section>
+
+  <div id="mainApp" class="hidden">
+    <header>
+      <p class="brand">GlowSpot <span style="font-size:13px;font-weight:700;">لأصحاب المراكز</span></p>
+      <p class="brand-sub">لوحة تحكم مركزك على GlowSpot</p>
+    </header>
+
+    <main>
+      <!-- DASHBOARD -->
+      <section id="viewDash" class="visible">
+        <button class="logout-btn" id="logoutBtn">تسجيل الخروج</button>
+        <div id="dashEditArea"></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS = ['#6B1F35','#C98CA7','#C9A227','#8C5B70','#9B3B49','#4E1526'];
+const WEEKDAYS = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+
+const DEPARTMENTS = {
+  hair:   {ar:'شعر',           icon:'💇', services:['تصفيف شعر','صبغة شعر','علاج الشعر','تسريحة عروس']},
+  makeup: {ar:'مكياج',          icon:'💄', services:['مكياج خفيف','مكياج كامل','مكياج عروس']},
+  nails:  {ar:'أظافر',          icon:'💅', services:['مانيكير','باديكير','مانيكير وباديكير معاً','جل','نيل آرت']},
+  henna:  {ar:'حنة',            icon:'🌿', services:['حنة عروس','حنة يدين','حنة أرجل','نقشة عصرية']},
+  spa:    {ar:'سبا',            icon:'💆', services:['مساج','مساج استرخاء','عناية بالجسم']},
+  steam:  {ar:'حمام بخار',      icon:'🧖', services:['حمام بخار','حمام تركي','تقشير الجسم']},
+  beauty: {ar:'عناية وجمال',    icon:'👁️', services:['رموش','حواجب','فيشل','عناية بالبشرة']},
+  cupping:{ar:'حجامة',          icon:'🔥', services:['حجامة جافة','حجامة رطبة','حجامة الظهر والكتفين']}
+};
+
+let centers = [];
+let experts = [];
+let packages = [];
+let bookings = [];
+let dashCenterId = null;
+let dashSession = null;
+
+const STATUS_LABELS = {
+  pending:'⏳ بانتظار موافقة الخبيرة', confirmed:'🟢 مؤكد', in_service:'🔵 جاري الآن',
+  completed:'✅ مكتمل', declined:'❌ رفضته الخبيرة', cancelled:'⚫ ملغى', no_show:'🚫 لم تحضر'
+};
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function initial(name){ return name.trim().charAt(0); }
+function timeToMin(t){ const [h,m] = t.split(':').map(Number); return h*60+m; }
+function minToTime(mins){ const h=Math.floor(mins/60), m=mins%60; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+
+/* ---------------- storage ---------------- */
+async function loadAll(){
+  centers  = await loadKey('centers', seedCenters());
+  experts  = await loadKey('experts', seedExperts());
+  packages = await loadKey('packages', seedPackages());
+  bookings = await loadKey('bookings', []);
+}
+async function loadKey(key, fallback){
+  try{
+    const r = await window.storage.get(key, true);
+    if(r) return JSON.parse(r.value);
+  }catch(e){}
+  await saveKey(key, fallback);
+  return fallback;
+}
+async function saveKey(key, value){
+  try{ await window.storage.set(key, JSON.stringify(value), true); }
+  catch(e){ toast('تعذر حفظ البيانات'); }
+}
+const saveCenters  = ()=> saveKey('centers', centers);
+const saveExperts  = ()=> saveKey('experts', experts);
+const savePackages = ()=> saveKey('packages', packages);
+const saveBookings = ()=> saveKey('bookings', bookings);
+const saveSession  = ()=> saveKey2('dashSession', dashSession, false);
+async function saveKey2(key, value, shared){
+  try{ await window.storage.set(key, JSON.stringify(value), shared); }
+  catch(e){ toast('تعذر حفظ البيانات'); }
+}
+
+function seedCenters(){
+  return [
+    {id:'c1', name:'Glow Beauty Center', city:'بنغازي', location:'الفويهات', about:'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified:true, rating:4.8, status:'approved', departments:['hair','makeup','nails','henna','spa'], username:'glowbeauty', password:'center123', paymentMethods:{}, homeService:true, views:0},
+    {id:'c2', name:'Royal Beauty Center', city:'بنغازي', location:'بن عاشور', about:'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified:true, rating:4.6, status:'approved', departments:['hair','beauty','steam'], username:'royalbeauty', password:'center123', paymentMethods:{}, homeService:false, views:0},
+    {id:'c3', name:'Luna Spa', city:'طرابلس', location:'حي الأندلس', about:'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified:false, rating:4.7, status:'approved', departments:['spa','steam','beauty','cupping'], username:'lunaspa', password:'center123', paymentMethods:{}, homeService:true, views:0}
+  ];
+}
+function seedExperts(){
+  return [
+    {id:'e1', centerId:'c1', department:'hair',   name:'سارة', specialty:'تصفيف وصبغة الشعر', rating:4.9, available:true,  color:COLORS[0], phone:'0920000001', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e2', centerId:'c1', department:'makeup', name:'مايا', specialty:'مكياج سهرة وعرايس', rating:4.8, available:false, color:COLORS[1], phone:'0920000002', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e3', centerId:'c1', department:'nails',  name:'نورا', specialty:'جل ونيل آرت', rating:4.9, available:true,  color:COLORS[2], phone:'0920000003', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e7', centerId:'c1', department:'henna',  name:'آية',  specialty:'حنة عروس ونقشات عصرية', rating:4.9, available:true,  color:COLORS[5], phone:'0920000007', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e4', centerId:'c2', department:'hair',   name:'لينا', specialty:'قص واستشوار', rating:4.7, available:true,  color:COLORS[3], phone:'0920000004', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e5', centerId:'c2', department:'beauty', name:'هدى',  specialty:'فيشل وعناية بالبشرة', rating:4.8, available:false, color:COLORS[4], phone:'0920000005', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e6', centerId:'c3', department:'spa',    name:'أمل',  specialty:'مساج استرخاء', rating:4.9, available:true,  color:COLORS[5], phone:'0920000006', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
+    {id:'e8', centerId:'c3', department:'cupping', name:'سلمى', specialty:'حجامة علاجية معتمدة', rating:4.8, available:true,  color:COLORS[0], phone:'0920000008', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]}
+  ];
+}
+function seedPackages(){
+  return [
+    {id:'p1', centerId:'c1', name:'باقة العروس', items:'شعر + مكياج + أظافر', price:650},
+    {id:'p2', centerId:'c1', name:'يوم الجمال', items:'شعر + فيشل + مانيكير + باديكير', price:300}
+  ];
+}
+
+/* ---------------- AUTH ---------------- */
+document.getElementById('gateBtn').addEventListener('click', async ()=>{
+  const username = document.getElementById('centerUsername').value.trim();
+  const password = document.getElementById('centerPassword').value;
+  const c = centers.find(x=>x.username===username && x.password===password);
+  if(!c){ toast('اسم المستخدم أو كلمة المرور غير صحيحة'); return; }
+  dashCenterId = c.id;
+  dashSession = {centerId:c.id};
+  await saveSession();
+  enterDash();
+});
+document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+  dashSession = null;
+  await saveSession();
+  document.getElementById('mainApp').classList.add('hidden');
+  document.getElementById('viewGate').classList.remove('visible');
+});
+function enterDash(){
+  document.getElementById('viewGate').classList.remove('visible');
+  document.getElementById('mainApp').classList.remove('hidden');
+  renderDashboard();
+}
+
+function renderDashboard(){
+  const c = centers.find(x=>x.id===dashCenterId);
+  const area = document.getElementById('dashEditArea');
+  if(!c){ area.innerHTML=''; return; }
+
+  const myExperts = experts.filter(e=>e.centerId===c.id);
+  const myPackages = packages.filter(p=>p.centerId===c.id);
+  const myBookings = bookings.filter(b=>b.centerId===c.id)
+    .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+
+  const statusLabel = c.status==='approved' ? '✅ مفعّل ومرئي للعميلات' : c.status==='disabled' ? '🔒 معطّل من إدارة GlowSpot' : '⏳ قيد المراجعة من إدارة GlowSpot';
+  area.innerHTML = `
+    <div class="dash-card">
+      <h4>بيانات المركز</h4>
+      <p style="font-size:12.5px;font-weight:700;color:var(--maroon-dark);margin:0 0 12px;">${statusLabel}</p>
+      <label>الاسم</label><input id="editName" value="${c.name}">
+      <label>المدينة</label><input id="editCity" value="${c.city}">
+      <label>الموقع</label><input id="editLocation" value="${c.location}">
+      <label>نبذة عن المركز</label><textarea id="editAbout" rows="2">${c.about||''}</textarea>
+      <button class="confirm-btn" id="saveCenterInfo" style="margin-top:10px;">حفظ التعديلات</button>
+    </div>
+
+    <div class="dash-card">
+      <h4>الأقسام المتوفرة</h4>
+      <div id="deptToggles">
+        ${Object.keys(DEPARTMENTS).map(d=>`<span class="toggle-pill ${c.departments.includes(d)?'active':''}" data-d="${d}">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</span>`).join('')}
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <h4>الخدمة المنزلية</h4>
+      <p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">إذا فعّلتِها، تقدر العميلة تختار استقبال الخدمة في منزلها بدل المركز</p>
+      <span class="toggle-pill ${c.homeService?'active':''}" id="homeServiceToggle">🏠 نقدّم خدمة منزلية</span>
+    </div>
+
+    <div class="dash-card">
+      <h4>الخدمات وطرق الدفع</h4>
+      <p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">حدّدي لكل خدمة هل تُدفع نقداً فقط أو نقداً وبطاقة</p>
+      <div id="paymentMethodRows">
+        ${c.departments.length===0 ? '<div class="empty-state">فعّلي قسماً أولاً لتظهر خدماته هنا</div>' :
+          c.departments.map(d=>`
+            <div style="margin-bottom:10px;">
+              <div style="font-size:12px;font-weight:800;color:var(--maroon-dark);margin-bottom:4px;">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</div>
+              ${DEPARTMENTS[d].services.map(s=>{
+                const pm = (c.paymentMethods && c.paymentMethods[s]) || 'cash';
+                return `<div class="list-row">
+                  <div class="main"><div class="t1" style="font-size:12.5px;">${s}</div></div>
+                  <div class="toggle-pill ${pm==='cash'?'active':''}" data-pm-cash="${s}" style="margin:0;">💵 كاش فقط</div>
+                  <div class="toggle-pill ${pm==='cash_card'?'active':''}" data-pm-both="${s}" style="margin:0;">💳 كاش وبطاقة</div>
+                </div>`;
+              }).join('')}
+            </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <h4>فريق العمل (${myExperts.length})</h4>
+      <div id="expertsRows">
+        ${myExperts.map(e=>`
+          <div class="list-row">
+            <div class="avatar" style="width:36px;height:36px;font-size:14px;background:${e.color}">${initial(e.name)}</div>
+            <div class="main">
+              <div class="t1">${e.name}</div>
+              <div class="t2">${DEPARTMENTS[e.department].ar} · ${e.specialty} · ⭐ ${e.rating.toFixed(1)}</div>
+            </div>
+            <div class="mini-switch ${e.available?'on':''}" data-avail="${e.id}"></div>
+            <button class="icon-btn" data-remove-expert="${e.id}">حذف</button>
+          </div>
+        `).join('') || '<div class="empty-state">لا يوجد فريق بعد</div>'}
+      </div>
+      <div class="add-form" style="margin-top:12px;">
+        <label style="margin-top:0;">إضافة عضوة جديدة للفريق</label>
+        <input id="newExpertName" placeholder="الاسم">
+        <select id="newExpertDept">${c.departments.map(d=>`<option value="${d}">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</option>`).join('') || '<option value="">أضيفي قسماً أولاً</option>'}</select>
+        <input id="newExpertSpec" placeholder="التخصص بالضبط">
+        <input id="newExpertPhone" placeholder="رقم هاتفها (لتسجيل الدخول للوحتها)" type="tel">
+        <input id="newExpertPassword" placeholder="كلمة مرور مبدئية للوحتها" type="text">
+        <button id="addExpertBtn">إضافة</button>
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <h4>الباقات (${myPackages.length})</h4>
+      <div id="packagesRows">
+        ${myPackages.map(p=>`
+          <div class="list-row">
+            <div class="main">
+              <div class="t1">${p.name} — ${p.price} د.ل</div>
+              <div class="t2">${p.items}</div>
+            </div>
+            <button class="icon-btn" data-remove-package="${p.id}">حذف</button>
+          </div>
+        `).join('') || '<div class="empty-state">لا توجد باقات بعد</div>'}
+      </div>
+      <div class="add-form" style="margin-top:12px;">
+        <label style="margin-top:0;">إضافة باقة جديدة</label>
+        <input id="newPkgName" placeholder="اسم الباقة">
+        <input id="newPkgItems" placeholder="المحتويات (مثال: شعر + مكياج)">
+        <input id="newPkgPrice" placeholder="السعر (د.ل)" type="number">
+        <button id="addPkgBtn">إضافة</button>
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <h4>طلبات إجازة الفريق</h4>
+      <div id="leaveRows">
+        ${myExperts.flatMap(e=>(e.leaveRequests||[]).filter(l=>l.status==='pending').map(l=>`
+          <div class="list-row">
+            <div class="main">
+              <div class="t1">${e.name} — ${l.date}</div>
+              <div class="t2">بانتظار موافقتك</div>
+            </div>
+            <button class="icon-btn" data-approve-leave="${e.id}::${l.date}" style="color:var(--maroon-dark);">✓ موافقة</button>
+          </div>
+        `)).join('') || '<div class="empty-state">لا توجد طلبات إجازة معلّقة</div>'}
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <h4>الحجوزات (${myBookings.length})</h4>
+      <div id="bookingsRows">
+        ${myBookings.map(b=>`
+          <div class="list-row">
+            <div class="main">
+              <div class="t1">${b.date.split('-').reverse().slice(0,2).join('/')} — ${b.time}–${minToTime(timeToMin(b.time)+(b.duration||60))} <span style="font-size:11px;font-weight:700;">${STATUS_LABELS[b.status]||b.status}</span></div>
+              <div class="t2">${b.service}${b.expertName ? ' · '+b.expertName : ''} · ${b.customerName} · ${b.phone}</div>
+            </div>
+            <button class="icon-btn" data-cancel-booking="${b.id}">إلغاء</button>
+          </div>
+        `).join('') || '<div class="empty-state">لا توجد حجوزات بعد</div>'}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('saveCenterInfo').addEventListener('click', async ()=>{
+    c.name = document.getElementById('editName').value.trim() || c.name;
+    c.city = document.getElementById('editCity').value.trim() || c.city;
+    c.location = document.getElementById('editLocation').value.trim();
+    c.about = document.getElementById('editAbout').value.trim();
+    await saveCenters();
+    toast('تم حفظ بيانات المركز');
+  });
+
+  document.querySelectorAll('#deptToggles .toggle-pill').forEach(pill=>{
+    pill.addEventListener('click', async ()=>{
+      const d = pill.dataset.d;
+      const idx = c.departments.indexOf(d);
+      if(idx>=0) c.departments.splice(idx,1); else c.departments.push(d);
+      await saveCenters();
+      renderDashboard();
+    });
+  });
+
+  document.getElementById('homeServiceToggle').addEventListener('click', async ()=>{
+    c.homeService = !c.homeService;
+    await saveCenters();
+    renderDashboard();
+  });
+
+  document.querySelectorAll('[data-pm-cash]').forEach(pill=>{
+    pill.addEventListener('click', async ()=>{
+      c.paymentMethods = c.paymentMethods || {};
+      c.paymentMethods[pill.dataset.pmCash] = 'cash';
+      await saveCenters();
+      renderDashboard();
+    });
+  });
+  document.querySelectorAll('[data-pm-both]').forEach(pill=>{
+    pill.addEventListener('click', async ()=>{
+      c.paymentMethods = c.paymentMethods || {};
+      c.paymentMethods[pill.dataset.pmBoth] = 'cash_card';
+      await saveCenters();
+      renderDashboard();
+    });
+  });
+
+  document.querySelectorAll('[data-avail]').forEach(sw=>{
+    sw.addEventListener('click', async ()=>{
+      const ex = experts.find(e=>e.id===sw.dataset.avail);
+      ex.available = !ex.available;
+      await saveExperts();
+      renderDashboard();
+    });
+  });
+  document.querySelectorAll('[data-remove-expert]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      experts = experts.filter(e=>e.id!==btn.dataset.removeExpert);
+      await saveExperts();
+      renderDashboard();
+      toast('تم حذف العضوة من الفريق');
+    });
+  });
+  document.querySelectorAll('[data-remove-package]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      packages = packages.filter(p=>p.id!==btn.dataset.removePackage);
+      await savePackages();
+      renderDashboard();
+      toast('تم حذف الباقة');
+    });
+  });
+  document.querySelectorAll('[data-cancel-booking]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const b = bookings.find(x=>x.id===btn.dataset.cancelBooking);
+      if(b){ b.status='cancelled'; await saveBookings(); renderDashboard(); toast('تم إلغاء الحجز'); }
+    });
+  });
+  document.querySelectorAll('[data-approve-leave]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const [expertId, date] = btn.dataset.approveLeave.split('::');
+      const ex = experts.find(x=>x.id===expertId);
+      const lr = ex && ex.leaveRequests.find(l=>l.date===date && l.status==='pending');
+      if(lr){ lr.status='approved'; await saveExperts(); renderDashboard(); toast('تمت الموافقة على الإجازة'); }
+    });
+  });
+
+  const addExpertBtn = document.getElementById('addExpertBtn');
+  if(addExpertBtn) addExpertBtn.addEventListener('click', async ()=>{
+    const name = document.getElementById('newExpertName').value.trim();
+    const department = document.getElementById('newExpertDept').value;
+    const specialty = document.getElementById('newExpertSpec').value.trim();
+    const phone = document.getElementById('newExpertPhone').value.trim();
+    const password = document.getElementById('newExpertPassword').value.trim();
+    if(!name || !department){ toast('يرجى إدخال الاسم واختيار القسم'); return; }
+    if(!phone || !password){ toast('يرجى إدخال رقم الهاتف وكلمة مرور مبدئية حتى تسجّل دخولها للوحتها'); return; }
+    experts.push({id:'e'+Date.now(), centerId:c.id, department, name, specialty: specialty||'خدمات عامة', rating:5.0, available:true, color:COLORS[experts.length % COLORS.length], phone, password, servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]});
+    await saveExperts();
+    renderDashboard();
+    toast('تمت إضافة ' + name + ' إلى الفريق — تقدر تسجّل دخولها بهاتفها وكلمة المرور في تطبيق الفريق');
+  });
+
+  document.getElementById('addPkgBtn').addEventListener('click', async ()=>{
+    const name = document.getElementById('newPkgName').value.trim();
+    const items = document.getElementById('newPkgItems').value.trim();
+    const price = parseFloat(document.getElementById('newPkgPrice').value) || 0;
+    if(!name){ toast('يرجى إدخال اسم الباقة'); return; }
+    packages.push({id:'p'+Date.now(), centerId:c.id, name, items, price});
+    await savePackages();
+    renderDashboard();
+    toast('تمت إضافة الباقة');
+  });
+}
+
+/* ---------------- INIT ---------------- */
+(async function init(){
+  await loadAll();
+  try{
+    const s = await window.storage.get('dashSession', false);
+    dashSession = s ? JSON.parse(s.value) : null;
+  }catch(e){ dashSession = null; }
+  if(dashSession && centers.find(c=>c.id===dashSession.centerId)){
+    dashCenterId = dashSession.centerId;
+    enterDash();
+  }
+})();
+</script>
+</body>
+</html>
