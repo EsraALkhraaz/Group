@@ -172,6 +172,7 @@ app.post('/api/bookings', requireAuth('customer'), ar(async (req, res) => {
       let free = null;
       for (const e of deptExperts) {
         if (!e.available) continue;
+        if (body.serviceLocation === 'home' && !e.homeService) continue;
         const dur = e.serviceDurations[service] || durGuess;
         if (!(await hasConflict(e.id, body.date, startMin, dur))) { free = e; break; }
       }
@@ -183,6 +184,7 @@ app.post('/api/bookings', requireAuth('customer'), ar(async (req, res) => {
     } else if (body.expertId) {
       const ex = await getExpert(body.expertId);
       if (!ex || ex.centerId !== center.id) return res.status(404).json({ error: 'expert_not_found' });
+      if (body.serviceLocation === 'home' && !ex.homeService) return res.status(400).json({ error: 'expert_no_home_service' });
       expertId = ex.id; expertName = ex.name;
       duration = ex.serviceDurations[service] || 60;
       const p = ex.servicePrices[service];
@@ -302,12 +304,11 @@ app.patch('/api/centers/:id', requireAuth('center'), ar(async (req, res) => {
     location: b.location !== undefined ? b.location : current.location,
     about: b.about !== undefined ? b.about : current.about,
     departments: b.departments !== undefined ? b.departments : current.departments,
-    paymentMethods: b.paymentMethods !== undefined ? b.paymentMethods : current.paymentMethods,
-    homeService: b.homeService !== undefined ? !!b.homeService : !!current.homeService
+    paymentMethods: b.paymentMethods !== undefined ? b.paymentMethods : current.paymentMethods
   };
   await db.query(
-    'UPDATE centers SET name=$1, city=$2, location=$3, about=$4, departments=$5, "paymentMethods"=$6, "homeService"=$7 WHERE id=$8',
-    [merged.name, merged.city, merged.location, merged.about, j(merged.departments), j(merged.paymentMethods), merged.homeService, current.id]
+    'UPDATE centers SET name=$1, city=$2, location=$3, about=$4, departments=$5, "paymentMethods"=$6 WHERE id=$7',
+    [merged.name, merged.city, merged.location, merged.about, j(merged.departments), j(merged.paymentMethods), current.id]
   );
   res.json(centerPublic(await getCenter(current.id)));
 }));
@@ -319,7 +320,7 @@ app.post('/api/experts', requireAuth('center'), ar(async (req, res) => {
   const COLORS = ['#6B1F35', '#C98CA7', '#C9A227', '#8C5B70', '#9B3B49', '#4E1526'];
   const row = {
     id: uid('e'), centerId: req.auth.centerId, department: b.department, name: b.name,
-    specialty: b.specialty || 'خدمات عامة', rating: 5.0, available: true,
+    specialty: b.specialty || 'خدمات عامة', rating: 5.0, available: true, homeService: false,
     color: COLORS[Math.floor(Math.random() * COLORS.length)],
     phone: b.phone, password_hash: bcrypt.hashSync(b.password, 10),
     servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {}
@@ -371,6 +372,7 @@ app.patch('/api/experts/:id', requireAuth('expert', 'center'), ar(async (req, re
   const b = req.body || {};
   const merged = {
     available: b.available !== undefined ? !!b.available : !!current.available,
+    homeService: b.homeService !== undefined ? !!b.homeService : !!current.homeService,
     servicePrices: b.servicePrices !== undefined ? b.servicePrices : current.servicePrices,
     serviceDurations: b.serviceDurations !== undefined ? b.serviceDurations : current.serviceDurations,
     workingHours: b.workingHours !== undefined ? b.workingHours : current.workingHours,
@@ -378,8 +380,8 @@ app.patch('/api/experts/:id', requireAuth('expert', 'center'), ar(async (req, re
     clientNotes: b.clientNotes !== undefined ? b.clientNotes : current.clientNotes
   };
   await db.query(
-    'UPDATE experts SET available=$1, "servicePrices"=$2, "serviceDurations"=$3, "workingHours"=$4, "leaveRequests"=$5, "clientNotes"=$6 WHERE id=$7',
-    [merged.available, j(merged.servicePrices), j(merged.serviceDurations), j(merged.workingHours), j(merged.leaveRequests), j(merged.clientNotes), current.id]
+    'UPDATE experts SET available=$1, "homeService"=$2, "servicePrices"=$3, "serviceDurations"=$4, "workingHours"=$5, "leaveRequests"=$6, "clientNotes"=$7 WHERE id=$8',
+    [merged.available, merged.homeService, j(merged.servicePrices), j(merged.serviceDurations), j(merged.workingHours), j(merged.leaveRequests), j(merged.clientNotes), current.id]
   );
   res.json(expertPublic(await getExpert(current.id)));
 }));
@@ -400,7 +402,7 @@ app.post('/api/centers', requireAuth('admin'), ar(async (req, res) => {
     id: uid('c'), name: b.name, city: b.city, location: b.location || '', about: b.about || '',
     verified: false, rating: 5.0, status: 'approved', departments: [],
     username: b.username, password_hash: bcrypt.hashSync(b.password, 10),
-    paymentMethods: {}, homeService: false, views: 0
+    paymentMethods: {}, views: 0
   };
   await centersStmt.insert.run(row);
   res.json(centerPublic(row));

@@ -976,7 +976,12 @@ function renderSheet(){
   }
 
   const readyForDate = bk.mode==='package' || (bk.department && bk.service && bk.expertId);
-  if(readyForDate && c.homeService){
+  // Home service is a per-expert choice, not a center-wide one — only offer it once a
+  // specific expert (not "any expert" or a package, which have no single expert) is
+  // picked, and only if that expert herself does home visits.
+  const selectedExpertForHome = (bk.expertId && bk.expertId!=='any') ? experts.find(x=>x.id===bk.expertId) : null;
+  const offersHomeService = !!(selectedExpertForHome && selectedExpertForHome.homeService);
+  if(readyForDate && offersHomeService){
     html += `<p class="step-label">مكان الخدمة</p><div class="chip-row" id="locationChips">`;
     html += `<span class="pick-chip ${bk.serviceLocation!=='home'?'active':''}" data-loc="center">🏢 في المركز</span>`;
     html += `<span class="pick-chip ${bk.serviceLocation==='home'?'active':''}" data-loc="home">🏠 في المنزل</span>`;

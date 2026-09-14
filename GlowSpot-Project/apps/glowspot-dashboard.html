@@ -316,12 +316,6 @@ function renderDashboard(){
     </div>
 
     <div class="dash-card">
-      <h4>الخدمة المنزلية</h4>
-      <p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">إذا فعّلتِها، تقدر العميلة تختار استقبال الخدمة في منزلها بدل المركز</p>
-      <span class="toggle-pill ${c.homeService?'active':''}" id="homeServiceToggle">🏠 نقدّم خدمة منزلية</span>
-    </div>
-
-    <div class="dash-card">
       <h4>الخدمات وطرق الدفع</h4>
       <p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">حدّدي لكل خدمة هل تُدفع نقداً فقط أو نقداً وبطاقة</p>
       <div id="paymentMethodRows">
@@ -343,12 +337,13 @@ function renderDashboard(){
 
     <div class="dash-card">
       <h4>فريق العمل (${myExperts.length})</h4>
+      <p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">كل خبيرة تفعّل الخدمة المنزلية لنفسها من لوحتها الخاصة (تطبيق الفريق)</p>
       <div id="expertsRows">
         ${myExperts.map(e=>`
           <div class="list-row">
             <div class="avatar" style="width:36px;height:36px;font-size:14px;background:${e.color}">${initial(e.name)}</div>
             <div class="main">
-              <div class="t1">${e.name}</div>
+              <div class="t1">${e.name}${e.homeService ? ' 🏠' : ''}</div>
               <div class="t2">${DEPARTMENTS[e.department].ar} · ${e.specialty} · ⭐ ${e.rating.toFixed(1)}</div>
             </div>
             <div class="mini-switch ${e.available?'on':''}" data-avail="${e.id}"></div>
@@ -439,12 +434,6 @@ function renderDashboard(){
       try{ await api.patch('/api/centers/'+c.id, {departments:c.departments}, {auth:'center'}); }catch(e){}
       renderDashboard();
     });
-  });
-
-  document.getElementById('homeServiceToggle').addEventListener('click', async ()=>{
-    c.homeService = !c.homeService;
-    try{ await api.patch('/api/centers/'+c.id, {homeService:c.homeService}, {auth:'center'}); }catch(e){}
-    renderDashboard();
   });
 
   document.querySelectorAll('[data-pm-cash]').forEach(pill=>{

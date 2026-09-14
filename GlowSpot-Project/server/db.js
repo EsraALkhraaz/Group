@@ -29,7 +29,6 @@ async function initSchema() {
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       "paymentMethods" JSONB DEFAULT '{}',
-      "homeService" BOOLEAN DEFAULT false,
       views INTEGER DEFAULT 0
     );
 
@@ -41,6 +40,7 @@ async function initSchema() {
       specialty TEXT,
       rating REAL DEFAULT 0,
       available BOOLEAN DEFAULT true,
+      "homeService" BOOLEAN DEFAULT false,
       color TEXT,
       phone TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
@@ -102,6 +102,14 @@ async function initSchema() {
       "createdAt" TEXT
     );
   `);
+
+  // Home service moved from a center-wide flag to a per-expert one — each
+  // expert now decides individually whether she does home visits, rather
+  // than it being an all-or-nothing setting for the whole center. These are
+  // idempotent so they're safe to run against an already-seeded database
+  // (e.g. the live deploy) as well as a brand new one.
+  await pool.query('ALTER TABLE experts ADD COLUMN IF NOT EXISTS "homeService" BOOLEAN DEFAULT false');
+  await pool.query('ALTER TABLE centers DROP COLUMN IF EXISTS "homeService"');
 }
 
 function uid(prefix) {
@@ -162,9 +170,9 @@ const centersStmt = {
   byUsername: { get: (username) => queryOne('SELECT * FROM centers WHERE username = $1', [username]) },
   insert: {
     run: (c) => pool.query(
-      `INSERT INTO centers (id,name,city,location,about,verified,rating,status,departments,username,password_hash,"paymentMethods","homeService",views)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-      [c.id, c.name, c.city, c.location, c.about, c.verified, c.rating, c.status, j(c.departments), c.username, c.password_hash, j(c.paymentMethods), c.homeService, c.views]
+      `INSERT INTO centers (id,name,city,location,about,verified,rating,status,departments,username,password_hash,"paymentMethods",views)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [c.id, c.name, c.city, c.location, c.about, c.verified, c.rating, c.status, j(c.departments), c.username, c.password_hash, j(c.paymentMethods), c.views]
     )
   },
   updateStatus: { run: (status, id) => pool.query('UPDATE centers SET status=$1 WHERE id=$2', [status, id]) },
@@ -180,9 +188,9 @@ const expertsStmt = {
   byCenter: { all: (centerId) => queryAll('SELECT * FROM experts WHERE "centerId" = $1', [centerId]) },
   insert: {
     run: (e) => pool.query(
-      `INSERT INTO experts (id,"centerId",department,name,specialty,rating,available,color,phone,password_hash,"servicePrices","serviceDurations","workingHours","leaveRequests","clientNotes")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-      [e.id, e.centerId, e.department, e.name, e.specialty, e.rating, e.available, e.color, e.phone, e.password_hash, j(e.servicePrices), j(e.serviceDurations), j(e.workingHours), j(e.leaveRequests), j(e.clientNotes)]
+      `INSERT INTO experts (id,"centerId",department,name,specialty,rating,available,"homeService",color,phone,password_hash,"servicePrices","serviceDurations","workingHours","leaveRequests","clientNotes")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [e.id, e.centerId, e.department, e.name, e.specialty, e.rating, e.available, e.homeService, e.color, e.phone, e.password_hash, j(e.servicePrices), j(e.serviceDurations), j(e.workingHours), j(e.leaveRequests), j(e.clientNotes)]
     )
   },
   delete: { run: (id) => pool.query('DELETE FROM experts WHERE id=$1', [id]) },
@@ -254,23 +262,23 @@ async function seed() {
   if (rows[0].n > 0) return;
 
   const centers = [
-    { id: 'c1', name: 'Glow Beauty Center', city: 'بنغازي', location: 'الفويهات', about: 'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified: true, rating: 4.8, status: 'approved', departments: ['hair', 'makeup', 'nails', 'henna', 'spa'], username: 'glowbeauty', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: {}, homeService: true, views: 0 },
-    { id: 'c2', name: 'Royal Beauty Center', city: 'بنغازي', location: 'بن عاشور', about: 'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified: true, rating: 4.6, status: 'approved', departments: ['hair', 'beauty', 'steam'], username: 'royalbeauty', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: {}, homeService: false, views: 0 },
-    { id: 'c3', name: 'Luna Spa', city: 'طرابلس', location: 'حي الأندلس', about: 'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified: false, rating: 4.7, status: 'approved', departments: ['spa', 'steam', 'beauty', 'cupping'], username: 'lunaspa', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: {}, homeService: true, views: 0 }
+    { id: 'c1', name: 'Glow Beauty Center', city: 'بنغازي', location: 'الفويهات', about: 'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified: true, rating: 4.8, status: 'approved', departments: ['hair', 'makeup', 'nails', 'henna', 'spa'], username: 'glowbeauty', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: {}, views: 0 },
+    { id: 'c2', name: 'Royal Beauty Center', city: 'بنغازي', location: 'بن عاشور', about: 'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified: true, rating: 4.6, status: 'approved', departments: ['hair', 'beauty', 'steam'], username: 'royalbeauty', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: {}, views: 0 },
+    { id: 'c3', name: 'Luna Spa', city: 'طرابلس', location: 'حي الأندلس', about: 'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified: false, rating: 4.7, status: 'approved', departments: ['spa', 'steam', 'beauty', 'cupping'], username: 'lunaspa', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: {}, views: 0 }
   ];
   for (const c of centers) await centersStmt.insert.run(c);
 
   const COLORS = ['#6B1F35', '#C98CA7', '#C9A227', '#8C5B70', '#9B3B49', '#4E1526'];
   const expertHash = bcrypt.hashSync('expert123', 10);
   const experts = [
-    { id: 'e1', centerId: 'c1', department: 'hair', name: 'سارة', specialty: 'تصفيف وصبغة الشعر', rating: 4.9, available: true, color: COLORS[0], phone: '0920000001', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
-    { id: 'e2', centerId: 'c1', department: 'makeup', name: 'مايا', specialty: 'مكياج سهرة وعرايس', rating: 4.8, available: false, color: COLORS[1], phone: '0920000002', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
-    { id: 'e3', centerId: 'c1', department: 'nails', name: 'نورا', specialty: 'جل ونيل آرت', rating: 4.9, available: true, color: COLORS[2], phone: '0920000003', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
-    { id: 'e7', centerId: 'c1', department: 'henna', name: 'آية', specialty: 'حنة عروس ونقشات عصرية', rating: 4.9, available: true, color: COLORS[5], phone: '0920000007', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
-    { id: 'e4', centerId: 'c2', department: 'hair', name: 'لينا', specialty: 'قص واستشوار', rating: 4.7, available: true, color: COLORS[3], phone: '0920000004', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
-    { id: 'e5', centerId: 'c2', department: 'beauty', name: 'هدى', specialty: 'فيشل وعناية بالبشرة', rating: 4.8, available: false, color: COLORS[4], phone: '0920000005', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
-    { id: 'e6', centerId: 'c3', department: 'spa', name: 'أمل', specialty: 'مساج استرخاء', rating: 4.9, available: true, color: COLORS[5], phone: '0920000006', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
-    { id: 'e8', centerId: 'c3', department: 'cupping', name: 'سلمى', specialty: 'حجامة علاجية معتمدة', rating: 4.8, available: true, color: COLORS[0], phone: '0920000008', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} }
+    { id: 'e1', centerId: 'c1', department: 'hair', name: 'سارة', specialty: 'تصفيف وصبغة الشعر', rating: 4.9, available: true, homeService: true, color: COLORS[0], phone: '0920000001', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e2', centerId: 'c1', department: 'makeup', name: 'مايا', specialty: 'مكياج سهرة وعرايس', rating: 4.8, available: false, homeService: false, color: COLORS[1], phone: '0920000002', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e3', centerId: 'c1', department: 'nails', name: 'نورا', specialty: 'جل ونيل آرت', rating: 4.9, available: true, homeService: false, color: COLORS[2], phone: '0920000003', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e7', centerId: 'c1', department: 'henna', name: 'آية', specialty: 'حنة عروس ونقشات عصرية', rating: 4.9, available: true, homeService: true, color: COLORS[5], phone: '0920000007', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e4', centerId: 'c2', department: 'hair', name: 'لينا', specialty: 'قص واستشوار', rating: 4.7, available: true, homeService: false, color: COLORS[3], phone: '0920000004', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e5', centerId: 'c2', department: 'beauty', name: 'هدى', specialty: 'فيشل وعناية بالبشرة', rating: 4.8, available: false, homeService: false, color: COLORS[4], phone: '0920000005', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e6', centerId: 'c3', department: 'spa', name: 'أمل', specialty: 'مساج استرخاء', rating: 4.9, available: true, homeService: true, color: COLORS[5], phone: '0920000006', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e8', centerId: 'c3', department: 'cupping', name: 'سلمى', specialty: 'حجامة علاجية معتمدة', rating: 4.8, available: true, homeService: false, color: COLORS[0], phone: '0920000008', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} }
   ];
   for (const e of experts) await expertsStmt.insert.run(e);
 
