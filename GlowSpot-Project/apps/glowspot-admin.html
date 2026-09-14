@@ -145,6 +145,18 @@ input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px 
         <div id="serviceChart"></div>
         <p class="section-title">الإيرادات</p>
         <div class="card" id="revenueNote"></div>
+
+        <p class="section-title">عمولة التطبيق</p>
+        <div class="card" id="commissionNote"></div>
+        <div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:160px;">
+            <div class="t1">نسبة العمولة الحالية</div>
+            <div class="t2">تُخصم من نصيب المركز/الخبيرة على كل حجز جديد، ولا تُغيّر حجوزات سابقة</div>
+          </div>
+          <input type="number" id="commissionRateInput" min="0" max="90" step="0.5" style="width:80px;padding:8px;border:1px solid #ddd;border-radius:8px;text-align:center;">
+          <span>%</span>
+          <button class="act-btn act-approve" id="saveCommissionBtn">حفظ</button>
+        </div>
       </section>
     </main>
   </div>
@@ -157,6 +169,7 @@ const COLORS = ['#6B1F35','#C98CA7','#C9A227','#8C5B70','#9B3B49','#4E1526'];
 
 let centers=[], experts=[], packages=[], bookings=[], customers=[], reviews=[];
 let activeTab = 'overview';
+let commissionRate = 0.10;
 
 function toast(msg){
   const t=document.getElementById('toast');
@@ -171,6 +184,7 @@ async function loadAll(){
   bookings  = await api.get('/api/bookings', {auth:'admin'});
   customers = await api.get('/api/customers', {auth:'admin'});
   reviews   = await api.get('/api/reviews');
+  commissionRate = (await api.get('/api/settings')).commissionRate;
 }
 
 document.getElementById('createCenterBtn').addEventListener('click', async ()=>{
@@ -269,6 +283,17 @@ function estimatedRevenue(){
     const price = ex && ex.servicePrices ? ex.servicePrices[b.service] : null;
     return sum + (price || 0);
   }, 0);
+}
+
+function estimatedCommission(){
+  return bookings
+    .filter(b=>['confirmed','in_service','completed'].includes(b.status))
+    .reduce((sum,b)=> sum + (b.commissionAmount || 0), 0);
+}
+function estimatedNet(){
+  return bookings
+    .filter(b=>['confirmed','in_service','completed'].includes(b.status))
+    .reduce((sum,b)=> sum + (b.netAmount != null ? b.netAmount : 0), 0);
 }
 
 /* ---------------- CENTERS ---------------- */
@@ -429,7 +454,24 @@ function renderAnalytics(){
     <div class="t1">${estimatedRevenue().toFixed(0)} د.ل</div>
     <div class="t2">محسوبة من حجوزات الباقات + الخدمات الفردية المسعّرة من الخبيرات، للحجوزات المؤكدة أو المكتملة فقط</div>
   `;
+
+  document.getElementById('commissionNote').innerHTML = `
+    <div class="t1">${estimatedCommission().toFixed(0)} د.ل عمولة التطبيق</div>
+    <div class="t2">بنسبة ${(commissionRate*100).toFixed(1)}% من كل حجز، محسوبة وقت إنشاء الحجز — صافي المراكز والخبيرات: ${estimatedNet().toFixed(0)} د.ل</div>
+  `;
+  document.getElementById('commissionRateInput').value = (commissionRate*100).toFixed(1);
 }
+
+document.getElementById('saveCommissionBtn').addEventListener('click', async ()=>{
+  const pct = parseFloat(document.getElementById('commissionRateInput').value);
+  if(!Number.isFinite(pct) || pct < 0 || pct > 90){ toast('نسبة غير صحيحة'); return; }
+  try{
+    const result = await api.patch('/api/settings', {commissionRate: pct/100}, {auth:'admin'});
+    commissionRate = result.commissionRate;
+    toast('تم حفظ نسبة العمولة — تُطبّق على الحجوزات الجديدة فقط');
+    renderAnalytics();
+  }catch(e){ toast('تعذر حفظ النسبة'); }
+});
 </script>
 </body>
 </html>

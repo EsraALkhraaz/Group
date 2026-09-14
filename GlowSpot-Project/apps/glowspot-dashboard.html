@@ -407,6 +407,7 @@ function renderDashboard(){
             <div class="main">
               <div class="t1">${b.date.split('-').reverse().slice(0,2).join('/')} — ${b.time}–${minToTime(timeToMin(b.time)+(b.duration||60))} <span style="font-size:11px;font-weight:700;">${STATUS_LABELS[b.status]||b.status}</span></div>
               <div class="t2">${b.service}${b.expertName ? ' · '+b.expertName : ''} · ${b.customerName} · ${b.phone}</div>
+              ${b.netAmount != null ? `<div class="t2">صافيك: ${b.netAmount} د.ل (بعد خصم عمولة التطبيق من ${b.price} د.ل)</div>` : ''}
             </div>
             <button class="icon-btn" data-cancel-booking="${b.id}">إلغاء</button>
           </div>

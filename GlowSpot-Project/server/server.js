@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const {
   db, uid, dbReady, j,
-  centersStmt, expertsStmt, customersStmt, packagesStmt, bookingsStmt, reviewsStmt,
+  centersStmt, expertsStmt, customersStmt, packagesStmt, bookingsStmt, reviewsStmt, settingsStmt,
   centerPublic, expertPublic, customerPublic, bookingPublic, bookingBusyView
 } = require('./db');
 const { signToken, requireAuth } = require('./auth');
@@ -34,6 +34,13 @@ async function hasConflict(expertId, date, startMin, durMin) {
 
 async function getExpert(id) { return expertsStmt.byId.get(id); }
 async function getCenter(id) { return centersStmt.byId.get(id); }
+
+async function getCommissionRate() {
+  const row = await settingsStmt.get('commissionRate');
+  const rate = row ? parseFloat(row.value) : NaN;
+  return Number.isFinite(rate) ? rate : 0.10;
+}
+function round2(n) { return Math.round(n * 100) / 100; }
 
 async function recomputeCenterRating(centerId) {
   const rows = await reviewsStmt.byCenter.all(centerId);
@@ -73,6 +80,9 @@ app.post('/api/centers/:id/view', ar(async (req, res) => {
   if (!c) return res.status(404).json({ error: 'not_found' });
   await centersStmt.incrementViews.run(c.id);
   res.json({ ok: true });
+}));
+app.get('/api/settings', ar(async (req, res) => {
+  res.json({ commissionRate: await getCommissionRate() });
 }));
 
 /* ================= auth ================= */
@@ -198,11 +208,21 @@ app.post('/api/bookings', requireAuth('customer'), ar(async (req, res) => {
   const phone = (body.phone || '').trim();
   if (!customerName || !phone) return res.status(400).json({ error: 'missing_customer_info' });
 
+  // Commission is computed and stored at creation time (not derived later
+  // from the live rate) so a future rate change never rewrites the numbers
+  // on past bookings.
+  let commissionAmount = null, netAmount = null;
+  if (price != null) {
+    const rate = await getCommissionRate();
+    commissionAmount = round2(price * rate);
+    netAmount = round2(price - commissionAmount);
+  }
+
   const row = {
     id: uid('bk'), centerId: center.id, centerName: center.name,
     department, service, expertId, expertName,
     customerId: req.auth.id, customerName, phone,
-    date: body.date, time: body.time, duration, price, status,
+    date: body.date, time: body.time, duration, price, commissionAmount, netAmount, status,
     serviceLocation: body.serviceLocation || 'center',
     homeAddress: body.serviceLocation === 'home' ? (body.homeAddress || '').trim() : null,
     declineReason: null, alternatives: []
@@ -392,6 +412,14 @@ app.get('/api/customers', requireAuth('admin'), ar(async (req, res) => {
 }));
 app.get('/api/bookings', requireAuth('admin'), ar(async (req, res) => {
   res.json((await bookingsStmt.all.all()).map(bookingPublic));
+}));
+
+app.patch('/api/settings', requireAuth('admin'), ar(async (req, res) => {
+  const { commissionRate } = req.body || {};
+  const rate = parseFloat(commissionRate);
+  if (!Number.isFinite(rate) || rate < 0 || rate > 0.9) return res.status(400).json({ error: 'invalid_rate' });
+  await settingsStmt.set('commissionRate', String(rate));
+  res.json({ commissionRate: rate });
 }));
 
 app.post('/api/centers', requireAuth('admin'), ar(async (req, res) => {

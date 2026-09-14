@@ -83,6 +83,8 @@ async function initSchema() {
       time TEXT NOT NULL,
       duration INTEGER DEFAULT 60,
       price REAL,
+      "commissionAmount" REAL,
+      "netAmount" REAL,
       status TEXT DEFAULT 'pending',
       "serviceLocation" TEXT DEFAULT 'center',
       "homeAddress" TEXT,
@@ -101,6 +103,11 @@ async function initSchema() {
       comment TEXT,
       "createdAt" TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
 
   // Home service moved from a center-wide flag to a per-expert one — each
@@ -110,6 +117,17 @@ async function initSchema() {
   // (e.g. the live deploy) as well as a brand new one.
   await pool.query('ALTER TABLE experts ADD COLUMN IF NOT EXISTS "homeService" BOOLEAN DEFAULT false');
   await pool.query('ALTER TABLE centers DROP COLUMN IF EXISTS "homeService"');
+
+  // Commission tracking: added after bookings already existed live, so these
+  // columns need an explicit migration too (fresh installs already get them
+  // from the CREATE TABLE above — this is a no-op there).
+  await pool.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "commissionAmount" REAL');
+  await pool.query('ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "netAmount" REAL');
+
+  // Default commission rate (10%) — only inserted if not already set, so an
+  // admin's later change via PATCH /api/settings is never clobbered by a
+  // redeploy.
+  await pool.query(`INSERT INTO settings (key, value) VALUES ('commissionRate', '0.10') ON CONFLICT (key) DO NOTHING`);
 }
 
 function uid(prefix) {
@@ -236,11 +254,19 @@ const bookingsStmt = {
   },
   insert: {
     run: (b) => pool.query(
-      `INSERT INTO bookings (id,"centerId","centerName",department,service,"expertId","expertName","customerId","customerName",phone,date,time,duration,price,status,"serviceLocation","homeAddress","declineReason",alternatives)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
-      [b.id, b.centerId, b.centerName, b.department, b.service, b.expertId, b.expertName, b.customerId, b.customerName, b.phone, b.date, b.time, b.duration, b.price, b.status, b.serviceLocation, b.homeAddress, b.declineReason, j(b.alternatives)]
+      `INSERT INTO bookings (id,"centerId","centerName",department,service,"expertId","expertName","customerId","customerName",phone,date,time,duration,price,"commissionAmount","netAmount",status,"serviceLocation","homeAddress","declineReason",alternatives)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+      [b.id, b.centerId, b.centerName, b.department, b.service, b.expertId, b.expertName, b.customerId, b.customerName, b.phone, b.date, b.time, b.duration, b.price, b.commissionAmount, b.netAmount, b.status, b.serviceLocation, b.homeAddress, b.declineReason, j(b.alternatives)]
     )
   }
+};
+
+const settingsStmt = {
+  get: (key) => queryOne('SELECT * FROM settings WHERE key = $1', [key]),
+  set: (key, value) => pool.query(
+    'INSERT INTO settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
+    [key, value]
+  )
 };
 
 const reviewsStmt = {
@@ -293,6 +319,6 @@ const dbReady = initSchema().then(seed);
 
 module.exports = {
   db, uid, dbReady, j,
-  centersStmt, expertsStmt, customersStmt, packagesStmt, bookingsStmt, reviewsStmt,
+  centersStmt, expertsStmt, customersStmt, packagesStmt, bookingsStmt, reviewsStmt, settingsStmt,
   centerPublic, expertPublic, customerPublic, bookingPublic, bookingBusyView
 };
