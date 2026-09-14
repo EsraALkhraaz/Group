@@ -1,10 +1,10 @@
 # GlowSpot server (MVP backend)
 
-A real backend for the 4 GlowSpot apps: persistent storage (SQLite), hashed
-passwords (bcrypt — never sent to the browser), signed session tokens (JWT),
-and server-side validation for every write (ownership checks, booking
-conflict detection, price/duration derived from the expert's own profile
-rather than trusted from the client).
+A real backend for the 4 GlowSpot apps: persistent storage (PostgreSQL),
+hashed passwords (bcrypt — never sent to the browser), signed session
+tokens (JWT), and server-side validation for every write (ownership
+checks, booking conflict detection, price/duration derived from the
+expert's own profile rather than trusted from the client).
 
 ## Run it
 
@@ -27,9 +27,16 @@ they call the API with relative paths like `/api/centers`, which only
 resolve correctly when the page itself was served from the same origin as
 the API.
 
-A SQLite database file (`glowspot.db`) is created next to `server.js` on
-first run, seeded with the same demo centers/experts/packages as before —
-same demo logins as always (see the top-level README).
+Needs a Postgres database to run — see the two options below. On first run
+it creates its tables and seeds the same demo centers/experts/packages as
+before, with the same demo logins as always (see the top-level README).
+
+**Local dev:** point `DATABASE_URL` at any Postgres you have, e.g.:
+```bash
+createuser glowspot -P   # set password glowspot_dev when prompted
+createdb glowspot -O glowspot
+DATABASE_URL="postgres://glowspot:glowspot_dev@localhost:5432/glowspot" npm start
+```
 
 ## Configuration
 
@@ -39,9 +46,13 @@ deploying anywhere other than your own machine:
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
+| `DATABASE_URL` | — (required) | Postgres connection string |
 | `GLOWSPOT_JWT_SECRET` | an insecure built-in default | Signs session tokens — **set a real random value before deploying** |
 | `GLOWSPOT_ADMIN_PASSWORD` | `glowspot2026` | Admin login password |
-| `GLOWSPOT_DB_PATH` | `./glowspot.db` | Where the SQLite file lives |
+
+SSL is auto-enabled for any `DATABASE_URL` that isn't `localhost`/`127.0.0.1`
+(with `rejectUnauthorized: false`, the usual setting for managed Postgres
+providers like Render whose certs aren't in Node's default trust store).
 
 ## What's actually real here vs. still a prototype
 
@@ -53,21 +64,28 @@ are re-validated on the server, not just in the browser; a service's price
 comes from the expert's own stored price, not from whatever the client
 happened to send.
 
-**Still not production-grade:** SQLite (fine for an MVP's traffic, would
-want Postgres/managed DB before scaling), no rate limiting or email/SMS
-verification on signup, no real payment integration, no push notifications,
-single-process (no horizontal scaling story yet). See the top-level
-README's "غير منفّذ بعد" section for the rest.
+**Still not production-grade:** no rate limiting or email/SMS verification
+on signup, no real payment integration, no push notifications, single web
+process (no horizontal scaling story yet — the database itself scales fine).
+See the top-level README's "غير منفّذ بعد" section for the rest.
 
-## Deploying to Render
+## Deploying to Render (free tier)
 
 `render.yaml` in this folder is a ready-made [Render Blueprint](https://render.com/docs/blueprint-spec):
-a Node web service on the **Starter** plan (needed because it attaches a
-1GB persistent disk at `/var/data` — SQLite needs real disk, and Render's
-free tier has none) with `GLOWSPOT_DB_PATH` pointed at that disk and
-`GLOWSPOT_JWT_SECRET` auto-generated. You still need to set
-`GLOWSPOT_ADMIN_PASSWORD` yourself in the Render dashboard after the first
-deploy (it's marked `sync: false` so it's never committed to git).
+a **free** Postgres database (`glowspot-db`) plus a **free** Node web
+service, wired together automatically (`DATABASE_URL` is populated from the
+database's connection string). `GLOWSPOT_JWT_SECRET` is auto-generated on
+deploy. You still need to set `GLOWSPOT_ADMIN_PASSWORD` yourself in the
+Render dashboard after the first deploy (it's marked `sync: false` so it's
+never committed to git).
+
+⚠️ **Render's free Postgres expires 30 days after creation** (Render then
+deletes it, unless you upgrade it to a paid instance before then). Fine for
+a testing window, not for anything meant to stay up indefinitely — if this
+needs to outlive 30 days, either upgrade the database at that point or plan
+to re-provision it. The free *web service* itself has no such expiry, but
+it does spin down after 15 minutes idle and takes a few seconds to wake back
+up on the next request.
 
 Cheapest way to change the demo credentials for a real test (e.g. new admin
 password, or center/expert passwords) once it's live: use the apps

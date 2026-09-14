@@ -1,245 +1,290 @@
-const path = require('path');
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
-const DB_PATH = process.env.GLOWSPOT_DB_PATH || path.join(__dirname, 'glowspot.db');
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS centers (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  city TEXT,
-  location TEXT,
-  about TEXT,
-  verified INTEGER DEFAULT 0,
-  rating REAL DEFAULT 0,
-  status TEXT DEFAULT 'pending',
-  departments TEXT DEFAULT '[]',
-  username TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  paymentMethods TEXT DEFAULT '{}',
-  homeService INTEGER DEFAULT 0,
-  views INTEGER DEFAULT 0
+const connectionString = process.env.DATABASE_URL;
+const isLocal = !connectionString || /localhost|127\.0\.0\.1/.test(connectionString);
+const pool = new Pool(
+  connectionString
+    ? { connectionString, ssl: isLocal ? false : { rejectUnauthorized: false } }
+    : undefined // falls back to PGHOST/PGUSER/PGPASSWORD/PGDATABASE/PGPORT env vars
 );
 
-CREATE TABLE IF NOT EXISTS experts (
-  id TEXT PRIMARY KEY,
-  centerId TEXT NOT NULL,
-  department TEXT,
-  name TEXT NOT NULL,
-  specialty TEXT,
-  rating REAL DEFAULT 0,
-  available INTEGER DEFAULT 1,
-  color TEXT,
-  phone TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  servicePrices TEXT DEFAULT '{}',
-  serviceDurations TEXT DEFAULT '{}',
-  workingHours TEXT DEFAULT '{}',
-  leaveRequests TEXT DEFAULT '[]',
-  clientNotes TEXT DEFAULT '{}'
-);
+const db = {
+  query: (text, params) => pool.query(text, params)
+};
 
-CREATE TABLE IF NOT EXISTS customers (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  phone TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  favorites TEXT DEFAULT '[]',
-  favoriteExperts TEXT DEFAULT '[]'
-);
+async function initSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS centers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      city TEXT,
+      location TEXT,
+      about TEXT,
+      verified BOOLEAN DEFAULT false,
+      rating REAL DEFAULT 0,
+      status TEXT DEFAULT 'pending',
+      departments JSONB DEFAULT '[]',
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      "paymentMethods" JSONB DEFAULT '{}',
+      "homeService" BOOLEAN DEFAULT false,
+      views INTEGER DEFAULT 0
+    );
 
-CREATE TABLE IF NOT EXISTS packages (
-  id TEXT PRIMARY KEY,
-  centerId TEXT NOT NULL,
-  name TEXT NOT NULL,
-  items TEXT,
-  price REAL DEFAULT 0
-);
+    CREATE TABLE IF NOT EXISTS experts (
+      id TEXT PRIMARY KEY,
+      "centerId" TEXT NOT NULL,
+      department TEXT,
+      name TEXT NOT NULL,
+      specialty TEXT,
+      rating REAL DEFAULT 0,
+      available BOOLEAN DEFAULT true,
+      color TEXT,
+      phone TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      "servicePrices" JSONB DEFAULT '{}',
+      "serviceDurations" JSONB DEFAULT '{}',
+      "workingHours" JSONB DEFAULT '{}',
+      "leaveRequests" JSONB DEFAULT '[]',
+      "clientNotes" JSONB DEFAULT '{}'
+    );
 
-CREATE TABLE IF NOT EXISTS bookings (
-  id TEXT PRIMARY KEY,
-  centerId TEXT NOT NULL,
-  centerName TEXT,
-  department TEXT,
-  service TEXT,
-  expertId TEXT,
-  expertName TEXT,
-  customerId TEXT,
-  customerName TEXT,
-  phone TEXT,
-  date TEXT NOT NULL,
-  time TEXT NOT NULL,
-  duration INTEGER DEFAULT 60,
-  price REAL,
-  status TEXT DEFAULT 'pending',
-  serviceLocation TEXT DEFAULT 'center',
-  homeAddress TEXT,
-  declineReason TEXT,
-  alternatives TEXT DEFAULT '[]'
-);
+    CREATE TABLE IF NOT EXISTS customers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      favorites JSONB DEFAULT '[]',
+      "favoriteExperts" JSONB DEFAULT '[]'
+    );
 
-CREATE TABLE IF NOT EXISTS reviews (
-  id TEXT PRIMARY KEY,
-  bookingId TEXT,
-  centerId TEXT,
-  expertId TEXT,
-  customerId TEXT,
-  customerName TEXT,
-  rating INTEGER,
-  comment TEXT,
-  createdAt TEXT
-);
-`);
+    CREATE TABLE IF NOT EXISTS packages (
+      id TEXT PRIMARY KEY,
+      "centerId" TEXT NOT NULL,
+      name TEXT NOT NULL,
+      items TEXT,
+      price REAL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS bookings (
+      id TEXT PRIMARY KEY,
+      "centerId" TEXT NOT NULL,
+      "centerName" TEXT,
+      department TEXT,
+      service TEXT,
+      "expertId" TEXT,
+      "expertName" TEXT,
+      "customerId" TEXT,
+      "customerName" TEXT,
+      phone TEXT,
+      date TEXT NOT NULL,
+      time TEXT NOT NULL,
+      duration INTEGER DEFAULT 60,
+      price REAL,
+      status TEXT DEFAULT 'pending',
+      "serviceLocation" TEXT DEFAULT 'center',
+      "homeAddress" TEXT,
+      "declineReason" TEXT,
+      alternatives JSONB DEFAULT '[]'
+    );
+
+    CREATE TABLE IF NOT EXISTS reviews (
+      id TEXT PRIMARY KEY,
+      "bookingId" TEXT,
+      "centerId" TEXT,
+      "expertId" TEXT,
+      "customerId" TEXT,
+      "customerName" TEXT,
+      rating INTEGER,
+      comment TEXT,
+      "createdAt" TEXT
+    );
+  `);
+}
 
 function uid(prefix) {
   return (prefix ? prefix + '_' : '') + crypto.randomBytes(9).toString('hex');
 }
 
-/* ---------------- JSON column helpers ---------------- */
-const CENTER_JSON_COLS = ['departments', 'paymentMethods'];
-const EXPERT_JSON_COLS = ['servicePrices', 'serviceDurations', 'workingHours', 'leaveRequests', 'clientNotes'];
-const CUSTOMER_JSON_COLS = ['favorites', 'favoriteExperts'];
-const BOOKING_JSON_COLS = ['alternatives'];
-
-function parseJsonCols(row, cols) {
-  if (!row) return row;
-  const out = Object.assign({}, row);
-  cols.forEach((c) => {
-    try { out[c] = JSON.parse(out[c]); } catch (e) { out[c] = c === 'leaveRequests' || c === 'alternatives' || c === 'departments' || c === 'favorites' || c === 'favoriteExperts' ? [] : {}; }
-  });
-  return out;
-}
-
+/* ---------------- public-shape helpers ----------------
+   JSONB columns already come back as parsed JS objects/arrays (pg's default
+   type parsers do this), and BOOLEAN columns come back as real booleans —
+   no manual JSON.parse or !! coercion needed here, unlike the old SQLite
+   version. The only job left is stripping password_hash. */
 function centerPublic(row) {
   if (!row) return null;
-  const c = parseJsonCols(row, CENTER_JSON_COLS);
+  const c = Object.assign({}, row);
   delete c.password_hash;
-  c.verified = !!c.verified;
-  c.homeService = !!c.homeService;
   return c;
 }
 function expertPublic(row) {
   if (!row) return null;
-  const e = parseJsonCols(row, EXPERT_JSON_COLS);
+  const e = Object.assign({}, row);
   delete e.password_hash;
-  e.available = !!e.available;
   return e;
 }
 function customerPublic(row) {
   if (!row) return null;
-  const c = parseJsonCols(row, CUSTOMER_JSON_COLS);
+  const c = Object.assign({}, row);
   delete c.password_hash;
   return c;
 }
 function bookingPublic(row) {
-  if (!row) return null;
-  return parseJsonCols(row, BOOKING_JSON_COLS);
+  return row || null;
 }
 function bookingBusyView(row) {
   return { expertId: row.expertId, date: row.date, time: row.time, duration: row.duration, status: row.status };
 }
 
-/* ---------------- generic CRUD ---------------- */
+async function queryOne(sql, params) {
+  const r = await pool.query(sql, params);
+  return r.rows[0] || null;
+}
+async function queryAll(sql, params) {
+  const r = await pool.query(sql, params);
+  return r.rows;
+}
+
+/* node-postgres serializes a plain JS array as a Postgres ARRAY literal
+   ("{a,b}"), not JSON — invalid input for a jsonb column. Objects happen to
+   come out as JSON text either way, but stringifying explicitly here makes
+   every JSONB write unambiguous regardless of value shape. Reads need no
+   symmetric JSON.parse: pg's default type parser already does that for
+   json/jsonb columns. */
+function j(v) { return JSON.stringify(v); }
+
+/* ---------------- generic CRUD (async — every method returns a Promise) ---------------- */
 const centersStmt = {
-  all: db.prepare('SELECT * FROM centers'),
-  byId: db.prepare('SELECT * FROM centers WHERE id = ?'),
-  byUsername: db.prepare('SELECT * FROM centers WHERE username = ?'),
-  insert: db.prepare(`INSERT INTO centers (id,name,city,location,about,verified,rating,status,departments,username,password_hash,paymentMethods,homeService,views)
-    VALUES (@id,@name,@city,@location,@about,@verified,@rating,@status,@departments,@username,@password_hash,@paymentMethods,@homeService,@views)`),
-  updateStatus: db.prepare('UPDATE centers SET status = ? WHERE id = ?'),
-  delete: db.prepare('DELETE FROM centers WHERE id = ?'),
-  updateRating: db.prepare('UPDATE centers SET rating = ? WHERE id = ?'),
-  incrementViews: db.prepare('UPDATE centers SET views = views + 1 WHERE id = ?')
+  all: { all: () => queryAll('SELECT * FROM centers') },
+  byId: { get: (id) => queryOne('SELECT * FROM centers WHERE id = $1', [id]) },
+  byUsername: { get: (username) => queryOne('SELECT * FROM centers WHERE username = $1', [username]) },
+  insert: {
+    run: (c) => pool.query(
+      `INSERT INTO centers (id,name,city,location,about,verified,rating,status,departments,username,password_hash,"paymentMethods","homeService",views)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [c.id, c.name, c.city, c.location, c.about, c.verified, c.rating, c.status, j(c.departments), c.username, c.password_hash, j(c.paymentMethods), c.homeService, c.views]
+    )
+  },
+  updateStatus: { run: (status, id) => pool.query('UPDATE centers SET status=$1 WHERE id=$2', [status, id]) },
+  delete: { run: (id) => pool.query('DELETE FROM centers WHERE id=$1', [id]) },
+  updateRating: { run: (rating, id) => pool.query('UPDATE centers SET rating=$1 WHERE id=$2', [rating, id]) },
+  incrementViews: { run: (id) => pool.query('UPDATE centers SET views = views + 1 WHERE id=$1', [id]) }
 };
 
 const expertsStmt = {
-  all: db.prepare('SELECT * FROM experts'),
-  byId: db.prepare('SELECT * FROM experts WHERE id = ?'),
-  byPhone: db.prepare('SELECT * FROM experts WHERE phone = ?'),
-  byCenter: db.prepare('SELECT * FROM experts WHERE centerId = ?'),
-  insert: db.prepare(`INSERT INTO experts (id,centerId,department,name,specialty,rating,available,color,phone,password_hash,servicePrices,serviceDurations,workingHours,leaveRequests,clientNotes)
-    VALUES (@id,@centerId,@department,@name,@specialty,@rating,@available,@color,@phone,@password_hash,@servicePrices,@serviceDurations,@workingHours,@leaveRequests,@clientNotes)`),
-  delete: db.prepare('DELETE FROM experts WHERE id = ?'),
-  updateRating: db.prepare('UPDATE experts SET rating = ? WHERE id = ?')
+  all: { all: () => queryAll('SELECT * FROM experts') },
+  byId: { get: (id) => queryOne('SELECT * FROM experts WHERE id = $1', [id]) },
+  byPhone: { get: (phone) => queryOne('SELECT * FROM experts WHERE phone = $1', [phone]) },
+  byCenter: { all: (centerId) => queryAll('SELECT * FROM experts WHERE "centerId" = $1', [centerId]) },
+  insert: {
+    run: (e) => pool.query(
+      `INSERT INTO experts (id,"centerId",department,name,specialty,rating,available,color,phone,password_hash,"servicePrices","serviceDurations","workingHours","leaveRequests","clientNotes")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [e.id, e.centerId, e.department, e.name, e.specialty, e.rating, e.available, e.color, e.phone, e.password_hash, j(e.servicePrices), j(e.serviceDurations), j(e.workingHours), j(e.leaveRequests), j(e.clientNotes)]
+    )
+  },
+  delete: { run: (id) => pool.query('DELETE FROM experts WHERE id=$1', [id]) },
+  updateRating: { run: (rating, id) => pool.query('UPDATE experts SET rating=$1 WHERE id=$2', [rating, id]) }
 };
 
 const customersStmt = {
-  all: db.prepare('SELECT * FROM customers'),
-  byId: db.prepare('SELECT * FROM customers WHERE id = ?'),
-  byPhone: db.prepare('SELECT * FROM customers WHERE phone = ?'),
-  insert: db.prepare(`INSERT INTO customers (id,name,phone,password_hash,favorites,favoriteExperts) VALUES (@id,@name,@phone,@password_hash,@favorites,@favoriteExperts)`)
+  all: { all: () => queryAll('SELECT * FROM customers') },
+  byId: { get: (id) => queryOne('SELECT * FROM customers WHERE id = $1', [id]) },
+  byPhone: { get: (phone) => queryOne('SELECT * FROM customers WHERE phone = $1', [phone]) },
+  insert: {
+    run: (c) => pool.query(
+      'INSERT INTO customers (id,name,phone,password_hash,favorites,"favoriteExperts") VALUES ($1,$2,$3,$4,$5,$6)',
+      [c.id, c.name, c.phone, c.password_hash, j(c.favorites), j(c.favoriteExperts)]
+    )
+  }
 };
 
 const packagesStmt = {
-  all: db.prepare('SELECT * FROM packages'),
-  byId: db.prepare('SELECT * FROM packages WHERE id = ?'),
-  byCenter: db.prepare('SELECT * FROM packages WHERE centerId = ?'),
-  insert: db.prepare('INSERT INTO packages (id,centerId,name,items,price) VALUES (@id,@centerId,@name,@items,@price)'),
-  delete: db.prepare('DELETE FROM packages WHERE id = ?')
+  all: { all: () => queryAll('SELECT * FROM packages') },
+  byId: { get: (id) => queryOne('SELECT * FROM packages WHERE id = $1', [id]) },
+  byCenter: { all: (centerId) => queryAll('SELECT * FROM packages WHERE "centerId" = $1', [centerId]) },
+  insert: {
+    run: (p) => pool.query(
+      'INSERT INTO packages (id,"centerId",name,items,price) VALUES ($1,$2,$3,$4,$5)',
+      [p.id, p.centerId, p.name, p.items, p.price]
+    )
+  },
+  delete: { run: (id) => pool.query('DELETE FROM packages WHERE id=$1', [id]) }
 };
 
 const bookingsStmt = {
-  all: db.prepare('SELECT * FROM bookings'),
-  byId: db.prepare('SELECT * FROM bookings WHERE id = ?'),
-  byCustomer: db.prepare('SELECT * FROM bookings WHERE customerId = ?'),
-  byExpert: db.prepare('SELECT * FROM bookings WHERE expertId = ?'),
-  byCenter: db.prepare('SELECT * FROM bookings WHERE centerId = ?'),
-  activeByExpertDate: db.prepare(`SELECT * FROM bookings WHERE expertId = ? AND date = ? AND status NOT IN ('cancelled','declined')`),
-  insert: db.prepare(`INSERT INTO bookings (id,centerId,centerName,department,service,expertId,expertName,customerId,customerName,phone,date,time,duration,price,status,serviceLocation,homeAddress,declineReason,alternatives)
-    VALUES (@id,@centerId,@centerName,@department,@service,@expertId,@expertName,@customerId,@customerName,@phone,@date,@time,@duration,@price,@status,@serviceLocation,@homeAddress,@declineReason,@alternatives)`)
+  all: { all: () => queryAll('SELECT * FROM bookings') },
+  byId: { get: (id) => queryOne('SELECT * FROM bookings WHERE id = $1', [id]) },
+  byCustomer: { all: (customerId) => queryAll('SELECT * FROM bookings WHERE "customerId" = $1', [customerId]) },
+  byExpert: { all: (expertId) => queryAll('SELECT * FROM bookings WHERE "expertId" = $1', [expertId]) },
+  byCenter: { all: (centerId) => queryAll('SELECT * FROM bookings WHERE "centerId" = $1', [centerId]) },
+  activeByExpertDate: {
+    all: (expertId, date) => queryAll(
+      `SELECT * FROM bookings WHERE "expertId" = $1 AND date = $2 AND status NOT IN ('cancelled','declined')`,
+      [expertId, date]
+    )
+  },
+  insert: {
+    run: (b) => pool.query(
+      `INSERT INTO bookings (id,"centerId","centerName",department,service,"expertId","expertName","customerId","customerName",phone,date,time,duration,price,status,"serviceLocation","homeAddress","declineReason",alternatives)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+      [b.id, b.centerId, b.centerName, b.department, b.service, b.expertId, b.expertName, b.customerId, b.customerName, b.phone, b.date, b.time, b.duration, b.price, b.status, b.serviceLocation, b.homeAddress, b.declineReason, j(b.alternatives)]
+    )
+  }
 };
 
 const reviewsStmt = {
-  all: db.prepare('SELECT * FROM reviews'),
-  byBooking: db.prepare('SELECT * FROM reviews WHERE bookingId = ?'),
-  byCenter: db.prepare('SELECT * FROM reviews WHERE centerId = ?'),
-  byExpert: db.prepare('SELECT * FROM reviews WHERE expertId = ?'),
-  insert: db.prepare('INSERT INTO reviews (id,bookingId,centerId,expertId,customerId,customerName,rating,comment,createdAt) VALUES (@id,@bookingId,@centerId,@expertId,@customerId,@customerName,@rating,@comment,@createdAt)')
+  all: { all: () => queryAll('SELECT * FROM reviews') },
+  byBooking: { all: (bookingId) => queryAll('SELECT * FROM reviews WHERE "bookingId" = $1', [bookingId]) },
+  byCenter: { all: (centerId) => queryAll('SELECT * FROM reviews WHERE "centerId" = $1', [centerId]) },
+  byExpert: { all: (expertId) => queryAll('SELECT * FROM reviews WHERE "expertId" = $1', [expertId]) },
+  insert: {
+    run: (r) => pool.query(
+      'INSERT INTO reviews (id,"bookingId","centerId","expertId","customerId","customerName",rating,comment,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      [r.id, r.bookingId, r.centerId, r.expertId, r.customerId, r.customerName, r.rating, r.comment, r.createdAt]
+    )
+  }
 };
 
 /* ---------------- seed (mirrors the front-end demo data) ---------------- */
-function seed() {
-  const centerCount = db.prepare('SELECT COUNT(*) AS n FROM centers').get().n;
-  if (centerCount > 0) return;
+async function seed() {
+  const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM centers');
+  if (rows[0].n > 0) return;
 
   const centers = [
-    { id: 'c1', name: 'Glow Beauty Center', city: 'بنغازي', location: 'الفويهات', about: 'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified: 1, rating: 4.8, status: 'approved', departments: JSON.stringify(['hair', 'makeup', 'nails', 'henna', 'spa']), username: 'glowbeauty', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: '{}', homeService: 1, views: 0 },
-    { id: 'c2', name: 'Royal Beauty Center', city: 'بنغازي', location: 'بن عاشور', about: 'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified: 1, rating: 4.6, status: 'approved', departments: JSON.stringify(['hair', 'beauty', 'steam']), username: 'royalbeauty', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: '{}', homeService: 0, views: 0 },
-    { id: 'c3', name: 'Luna Spa', city: 'طرابلس', location: 'حي الأندلس', about: 'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified: 0, rating: 4.7, status: 'approved', departments: JSON.stringify(['spa', 'steam', 'beauty', 'cupping']), username: 'lunaspa', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: '{}', homeService: 1, views: 0 }
+    { id: 'c1', name: 'Glow Beauty Center', city: 'بنغازي', location: 'الفويهات', about: 'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified: true, rating: 4.8, status: 'approved', departments: ['hair', 'makeup', 'nails', 'henna', 'spa'], username: 'glowbeauty', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: {}, homeService: true, views: 0 },
+    { id: 'c2', name: 'Royal Beauty Center', city: 'بنغازي', location: 'بن عاشور', about: 'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified: true, rating: 4.6, status: 'approved', departments: ['hair', 'beauty', 'steam'], username: 'royalbeauty', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: {}, homeService: false, views: 0 },
+    { id: 'c3', name: 'Luna Spa', city: 'طرابلس', location: 'حي الأندلس', about: 'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified: false, rating: 4.7, status: 'approved', departments: ['spa', 'steam', 'beauty', 'cupping'], username: 'lunaspa', password_hash: bcrypt.hashSync('center123', 10), paymentMethods: {}, homeService: true, views: 0 }
   ];
-  const insertCenters = db.transaction((rows) => rows.forEach((r) => centersStmt.insert.run(r)));
-  insertCenters(centers);
+  for (const c of centers) await centersStmt.insert.run(c);
 
   const COLORS = ['#6B1F35', '#C98CA7', '#C9A227', '#8C5B70', '#9B3B49', '#4E1526'];
   const expertHash = bcrypt.hashSync('expert123', 10);
   const experts = [
-    { id: 'e1', centerId: 'c1', department: 'hair', name: 'سارة', specialty: 'تصفيف وصبغة الشعر', rating: 4.9, available: 1, color: COLORS[0], phone: '0920000001', password_hash: expertHash, servicePrices: '{}', serviceDurations: '{}', workingHours: '{}', leaveRequests: '[]', clientNotes: '{}' },
-    { id: 'e2', centerId: 'c1', department: 'makeup', name: 'مايا', specialty: 'مكياج سهرة وعرايس', rating: 4.8, available: 0, color: COLORS[1], phone: '0920000002', password_hash: expertHash, servicePrices: '{}', serviceDurations: '{}', workingHours: '{}', leaveRequests: '[]', clientNotes: '{}' },
-    { id: 'e3', centerId: 'c1', department: 'nails', name: 'نورا', specialty: 'جل ونيل آرت', rating: 4.9, available: 1, color: COLORS[2], phone: '0920000003', password_hash: expertHash, servicePrices: '{}', serviceDurations: '{}', workingHours: '{}', leaveRequests: '[]', clientNotes: '{}' },
-    { id: 'e7', centerId: 'c1', department: 'henna', name: 'آية', specialty: 'حنة عروس ونقشات عصرية', rating: 4.9, available: 1, color: COLORS[5], phone: '0920000007', password_hash: expertHash, servicePrices: '{}', serviceDurations: '{}', workingHours: '{}', leaveRequests: '[]', clientNotes: '{}' },
-    { id: 'e4', centerId: 'c2', department: 'hair', name: 'لينا', specialty: 'قص واستشوار', rating: 4.7, available: 1, color: COLORS[3], phone: '0920000004', password_hash: expertHash, servicePrices: '{}', serviceDurations: '{}', workingHours: '{}', leaveRequests: '[]', clientNotes: '{}' },
-    { id: 'e5', centerId: 'c2', department: 'beauty', name: 'هدى', specialty: 'فيشل وعناية بالبشرة', rating: 4.8, available: 0, color: COLORS[4], phone: '0920000005', password_hash: expertHash, servicePrices: '{}', serviceDurations: '{}', workingHours: '{}', leaveRequests: '[]', clientNotes: '{}' },
-    { id: 'e6', centerId: 'c3', department: 'spa', name: 'أمل', specialty: 'مساج استرخاء', rating: 4.9, available: 1, color: COLORS[5], phone: '0920000006', password_hash: expertHash, servicePrices: '{}', serviceDurations: '{}', workingHours: '{}', leaveRequests: '[]', clientNotes: '{}' },
-    { id: 'e8', centerId: 'c3', department: 'cupping', name: 'سلمى', specialty: 'حجامة علاجية معتمدة', rating: 4.8, available: 1, color: COLORS[0], phone: '0920000008', password_hash: expertHash, servicePrices: '{}', serviceDurations: '{}', workingHours: '{}', leaveRequests: '[]', clientNotes: '{}' }
+    { id: 'e1', centerId: 'c1', department: 'hair', name: 'سارة', specialty: 'تصفيف وصبغة الشعر', rating: 4.9, available: true, color: COLORS[0], phone: '0920000001', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e2', centerId: 'c1', department: 'makeup', name: 'مايا', specialty: 'مكياج سهرة وعرايس', rating: 4.8, available: false, color: COLORS[1], phone: '0920000002', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e3', centerId: 'c1', department: 'nails', name: 'نورا', specialty: 'جل ونيل آرت', rating: 4.9, available: true, color: COLORS[2], phone: '0920000003', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e7', centerId: 'c1', department: 'henna', name: 'آية', specialty: 'حنة عروس ونقشات عصرية', rating: 4.9, available: true, color: COLORS[5], phone: '0920000007', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e4', centerId: 'c2', department: 'hair', name: 'لينا', specialty: 'قص واستشوار', rating: 4.7, available: true, color: COLORS[3], phone: '0920000004', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e5', centerId: 'c2', department: 'beauty', name: 'هدى', specialty: 'فيشل وعناية بالبشرة', rating: 4.8, available: false, color: COLORS[4], phone: '0920000005', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e6', centerId: 'c3', department: 'spa', name: 'أمل', specialty: 'مساج استرخاء', rating: 4.9, available: true, color: COLORS[5], phone: '0920000006', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} },
+    { id: 'e8', centerId: 'c3', department: 'cupping', name: 'سلمى', specialty: 'حجامة علاجية معتمدة', rating: 4.8, available: true, color: COLORS[0], phone: '0920000008', password_hash: expertHash, servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {} }
   ];
-  const insertExperts = db.transaction((rows) => rows.forEach((r) => expertsStmt.insert.run(r)));
-  insertExperts(experts);
+  for (const e of experts) await expertsStmt.insert.run(e);
 
   const packages = [
     { id: 'p1', centerId: 'c1', name: 'باقة العروس', items: 'شعر + مكياج + أظافر', price: 650 },
     { id: 'p2', centerId: 'c1', name: 'يوم الجمال', items: 'شعر + فيشل + مانيكير + باديكير', price: 300 }
   ];
-  const insertPackages = db.transaction((rows) => rows.forEach((r) => packagesStmt.insert.run(r)));
-  insertPackages(packages);
+  for (const p of packages) await packagesStmt.insert.run(p);
 }
-seed();
+
+const dbReady = initSchema().then(seed);
 
 module.exports = {
-  db, uid,
+  db, uid, dbReady, j,
   centersStmt, expertsStmt, customersStmt, packagesStmt, bookingsStmt, reviewsStmt,
   centerPublic, expertPublic, customerPublic, bookingPublic, bookingBusyView
 };

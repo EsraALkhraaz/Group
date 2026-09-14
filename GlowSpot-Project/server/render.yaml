@@ -1,19 +1,23 @@
+databases:
+  - name: glowspot-db
+    plan: free
+    databaseName: glowspot
+    user: glowspot
+
 services:
   - type: web
     name: glowspot-server
     runtime: node
-    plan: starter
+    plan: free
     rootDir: GlowSpot-Project/server
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
-    disk:
-      name: glowspot-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
-      - key: GLOWSPOT_DB_PATH
-        value: /var/data/glowspot.db
+      - key: DATABASE_URL
+        fromDatabase:
+          name: glowspot-db
+          property: connectionString
       - key: GLOWSPOT_JWT_SECRET
         generateValue: true
       - key: GLOWSPOT_ADMIN_PASSWORD
