@@ -59,6 +59,22 @@ verification on signup, no real payment integration, no push notifications,
 single-process (no horizontal scaling story yet). See the top-level
 README's "غير منفّذ بعد" section for the rest.
 
+## Deploying to Render
+
+`render.yaml` in this folder is a ready-made [Render Blueprint](https://render.com/docs/blueprint-spec):
+a Node web service on the **Starter** plan (needed because it attaches a
+1GB persistent disk at `/var/data` — SQLite needs real disk, and Render's
+free tier has none) with `GLOWSPOT_DB_PATH` pointed at that disk and
+`GLOWSPOT_JWT_SECRET` auto-generated. You still need to set
+`GLOWSPOT_ADMIN_PASSWORD` yourself in the Render dashboard after the first
+deploy (it's marked `sync: false` so it's never committed to git).
+
+Cheapest way to change the demo credentials for a real test (e.g. new admin
+password, or center/expert passwords) once it's live: use the apps
+themselves — the admin panel creates centers with their own password, and
+each center sets its experts' initial passwords — rather than editing the
+seed data.
+
 ## API surface
 
 Public (no auth): `GET /api/centers`, `/api/experts`, `/api/packages`,

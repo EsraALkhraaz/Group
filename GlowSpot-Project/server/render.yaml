@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: glowspot-server
+    runtime: node
+    plan: starter
+    rootDir: GlowSpot-Project/server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: glowspot-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: GLOWSPOT_DB_PATH
+        value: /var/data/glowspot.db
+      - key: GLOWSPOT_JWT_SECRET
+        generateValue: true
+      - key: GLOWSPOT_ADMIN_PASSWORD
+        sync: false
