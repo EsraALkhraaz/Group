@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<script src="glowspot-storage-polyfill.js"></script>
+<script src="glowspot-api.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GlowSpot Admin — إدارة المنصة</title>
@@ -152,7 +152,7 @@ input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px 
 <div class="toast" id="toast"></div>
 
 <script>
-const ADMIN_PASSWORD = 'glowspot2026';
+const api = window.GlowSpotAPI;
 const COLORS = ['#6B1F35','#C98CA7','#C9A227','#8C5B70','#9B3B49','#4E1526'];
 
 let centers=[], experts=[], packages=[], bookings=[], customers=[], reviews=[];
@@ -165,47 +165,13 @@ function toast(msg){
 }
 
 async function loadAll(){
-  centers   = await loadKey('centers', seedCenters(), true);
-  experts   = await loadKey('experts', seedExperts(), true);
-  packages  = await loadKey('packages', seedPackages(), true);
-  bookings  = await loadKey('bookings', [], true);
-  customers = await loadKey('customers', [], true);
-  reviews   = await loadKey('reviews', [], true);
+  centers   = await api.get('/api/centers');
+  experts   = await api.get('/api/experts');
+  packages  = await api.get('/api/packages');
+  bookings  = await api.get('/api/bookings', {auth:'admin'});
+  customers = await api.get('/api/customers', {auth:'admin'});
+  reviews   = await api.get('/api/reviews');
 }
-function seedCenters(){
-  return [
-    {id:'c1', name:'Glow Beauty Center', city:'بنغازي', location:'الفويهات', about:'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified:true, rating:4.8, status:'approved', departments:['hair','makeup','nails','henna','spa'], username:'glowbeauty', password:'center123', paymentMethods:{}, homeService:true, views:0},
-    {id:'c2', name:'Royal Beauty Center', city:'بنغازي', location:'بن عاشور', about:'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified:true, rating:4.6, status:'approved', departments:['hair','beauty','steam'], username:'royalbeauty', password:'center123', paymentMethods:{}, homeService:false, views:0},
-    {id:'c3', name:'Luna Spa', city:'طرابلس', location:'حي الأندلس', about:'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified:false, rating:4.7, status:'approved', departments:['spa','steam','beauty','cupping'], username:'lunaspa', password:'center123', paymentMethods:{}, homeService:true, views:0}
-  ];
-}
-function seedExperts(){
-  return [
-    {id:'e1', centerId:'c1', department:'hair',   name:'سارة', specialty:'تصفيف وصبغة الشعر', rating:4.9, available:true,  color:COLORS[0], phone:'0920000001', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e2', centerId:'c1', department:'makeup', name:'مايا', specialty:'مكياج سهرة وعرايس', rating:4.8, available:false, color:COLORS[1], phone:'0920000002', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e3', centerId:'c1', department:'nails',  name:'نورا', specialty:'جل ونيل آرت', rating:4.9, available:true,  color:COLORS[2], phone:'0920000003', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e7', centerId:'c1', department:'henna',  name:'آية',  specialty:'حنة عروس ونقشات عصرية', rating:4.9, available:true,  color:COLORS[5], phone:'0920000007', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e4', centerId:'c2', department:'hair',   name:'لينا', specialty:'قص واستشوار', rating:4.7, available:true,  color:COLORS[3], phone:'0920000004', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e5', centerId:'c2', department:'beauty', name:'هدى',  specialty:'فيشل وعناية بالبشرة', rating:4.8, available:false, color:COLORS[4], phone:'0920000005', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e6', centerId:'c3', department:'spa',    name:'أمل',  specialty:'مساج استرخاء', rating:4.9, available:true,  color:COLORS[5], phone:'0920000006', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e8', centerId:'c3', department:'cupping', name:'سلمى', specialty:'حجامة علاجية معتمدة', rating:4.8, available:true,  color:COLORS[0], phone:'0920000008', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]}
-  ];
-}
-function seedPackages(){
-  return [
-    {id:'p1', centerId:'c1', name:'باقة العروس', items:'شعر + مكياج + أظافر', price:650},
-    {id:'p2', centerId:'c1', name:'يوم الجمال', items:'شعر + فيشل + مانيكير + باديكير', price:300}
-  ];
-}
-async function loadKey(key, fallback, shared){
-  try{ const r = await window.storage.get(key, shared); if(r) return JSON.parse(r.value); }catch(e){}
-  return fallback;
-}
-async function saveKey(key, value, shared){
-  try{ await window.storage.set(key, JSON.stringify(value), shared); }
-  catch(e){ toast('تعذر حفظ البيانات'); }
-}
-const saveCenters = ()=> saveKey('centers', centers, true);
 
 document.getElementById('createCenterBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('newCenterName').value.trim();
@@ -215,28 +181,35 @@ document.getElementById('createCenterBtn').addEventListener('click', async ()=>{
   const username = document.getElementById('newCenterUsername').value.trim();
   const password = document.getElementById('newCenterPassword').value.trim();
   if(!name || !city || !username || !password){ toast('يرجى تعبئة الاسم والمدينة واسم المستخدم وكلمة المرور'); return; }
-  if(centers.some(c=>c.username===username)){ toast('اسم المستخدم هذا مستخدم من قبل، اختاري اسماً آخر'); return; }
-  const c = {id:'c'+Date.now(), name, city, location, about, verified:false, rating:5.0, status:'approved', departments:[], username, password, paymentMethods:{}};
-  centers.push(c);
-  await saveCenters();
-  document.getElementById('newCenterName').value='';
-  document.getElementById('newCenterCity').value='';
-  document.getElementById('newCenterLocation').value='';
-  document.getElementById('newCenterAbout').value='';
-  document.getElementById('newCenterUsername').value='';
-  document.getElementById('newCenterPassword').value='';
-  toast('تم إنشاء المركز بنجاح — أعطي صاحبة المركز اسم المستخدم وكلمة المرور لتسجيل الدخول للوحتها');
-  renderCentersList();
+  try{
+    const c = await api.post('/api/centers', {name, city, location, about, username, password}, {auth:'admin'});
+    centers.push(c);
+    document.getElementById('newCenterName').value='';
+    document.getElementById('newCenterCity').value='';
+    document.getElementById('newCenterLocation').value='';
+    document.getElementById('newCenterAbout').value='';
+    document.getElementById('newCenterUsername').value='';
+    document.getElementById('newCenterPassword').value='';
+    toast('تم إنشاء المركز بنجاح — أعطي صاحبة المركز اسم المستخدم وكلمة المرور لتسجيل الدخول للوحتها');
+    renderCentersList();
+  }catch(e){
+    toast(e.error==='username_taken' ? 'اسم المستخدم هذا مستخدم من قبل، اختاري اسماً آخر' : 'تعذر إنشاء المركز');
+  }
 });
 
 document.getElementById('gateBtn').addEventListener('click', async ()=>{
   const pw = document.getElementById('adminPassword').value;
-  if(pw !== ADMIN_PASSWORD){ toast('كلمة المرور غير صحيحة'); return; }
-  document.getElementById('viewGate').classList.remove('visible');
-  document.getElementById('mainApp').classList.remove('hidden');
-  await loadAll();
-  renderTabs();
-  showTab('overview');
+  try{
+    const result = await api.post('/api/auth/admin/login', {password: pw});
+    api.setToken('admin', result.token);
+    document.getElementById('viewGate').classList.remove('visible');
+    document.getElementById('mainApp').classList.remove('hidden');
+    await loadAll();
+    renderTabs();
+    showTab('overview');
+  }catch(e){
+    toast('كلمة المرور غير صحيحة');
+  }
 });
 
 const TABS = [
@@ -325,20 +298,32 @@ function centerCardHtml(c){
 }
 function bindCenterActions(wrap){
   wrap.querySelectorAll('[data-approve]').forEach(btn=>btn.addEventListener('click', async ()=>{
-    const c = centers.find(x=>x.id===btn.dataset.approve); c.status='approved'; await saveCenters();
-    toast('تم قبول المركز'); showTab(activeTab);
+    try{
+      const c = centers.find(x=>x.id===btn.dataset.approve);
+      await api.patch('/api/centers/'+c.id+'/status', {status:'approved'}, {auth:'admin'});
+      c.status='approved'; toast('تم قبول المركز'); showTab(activeTab);
+    }catch(e){ toast('تعذر تنفيذ الإجراء'); }
   }));
   wrap.querySelectorAll('[data-reject]').forEach(btn=>btn.addEventListener('click', async ()=>{
-    centers = centers.filter(x=>x.id!==btn.dataset.reject); await saveCenters();
-    toast('تم رفض المركز وحذفه'); showTab(activeTab);
+    try{
+      await api.del('/api/centers/'+btn.dataset.reject, {auth:'admin'});
+      centers = centers.filter(x=>x.id!==btn.dataset.reject);
+      toast('تم رفض المركز وحذفه'); showTab(activeTab);
+    }catch(e){ toast('تعذر تنفيذ الإجراء'); }
   }));
   wrap.querySelectorAll('[data-disable]').forEach(btn=>btn.addEventListener('click', async ()=>{
-    const c = centers.find(x=>x.id===btn.dataset.disable); c.status='disabled'; await saveCenters();
-    toast('تم تعطيل المركز'); showTab(activeTab);
+    try{
+      const c = centers.find(x=>x.id===btn.dataset.disable);
+      await api.patch('/api/centers/'+c.id+'/status', {status:'disabled'}, {auth:'admin'});
+      c.status='disabled'; toast('تم تعطيل المركز'); showTab(activeTab);
+    }catch(e){ toast('تعذر تنفيذ الإجراء'); }
   }));
   wrap.querySelectorAll('[data-enable]').forEach(btn=>btn.addEventListener('click', async ()=>{
-    const c = centers.find(x=>x.id===btn.dataset.enable); c.status='approved'; await saveCenters();
-    toast('تم إعادة تفعيل المركز'); showTab(activeTab);
+    try{
+      const c = centers.find(x=>x.id===btn.dataset.enable);
+      await api.patch('/api/centers/'+c.id+'/status', {status:'approved'}, {auth:'admin'});
+      c.status='approved'; toast('تم إعادة تفعيل المركز'); showTab(activeTab);
+    }catch(e){ toast('تعذر تنفيذ الإجراء'); }
   }));
 }
 function renderCentersList(){

@@ -1,0 +1,5 @@
+node_modules/
+glowspot.db
+glowspot.db-shm
+glowspot.db-wal
+.env

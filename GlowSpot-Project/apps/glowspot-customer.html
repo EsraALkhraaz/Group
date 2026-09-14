@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<script src="glowspot-storage-polyfill.js"></script>
+<script src="glowspot-api.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GlowSpot — اكتشفي مراكز الجمال</title>
@@ -385,7 +385,8 @@ const DEPARTMENTS = {
 };
 const POPULAR_SERVICES = ['مكياج عروس','مانيكير جل','مساج استرخاء','حنة عروس','مانيكير وباديكير معاً'];
 
-let centers = [], experts = [], packages = [], bookings = [], customers = [], reviews = [];
+const api = window.GlowSpotAPI;
+let centers = [], experts = [], packages = [], bookings = [], busyBookings = [], customers = [], reviews = [];
 let session = null;          // {customerId}
 let activeCity = 'الكل';
 let searchQuery = '';
@@ -420,63 +421,28 @@ function getServicePrice(expertId, service){
 function rangesOverlap(aStart,aDur,bStart,bDur){ return aStart < bStart+bDur && bStart < aStart+aDur; }
 function currentCustomer(){ return customers.find(c=>c.id===(session&&session.customerId)); }
 
-/* ---------------- storage ---------------- */
+/* ---------------- storage (real backend via glowspot-api.js) ---------------- */
 async function loadAll(){
-  centers   = await loadKey('centers', seedCenters(), true);
-  experts   = await loadKey('experts', seedExperts(), true);
-  packages  = await loadKey('packages', seedPackages(), true);
-  bookings  = await loadKey('bookings', [], true);
-  customers = await loadKey('customers', [], true);
-  reviews   = await loadKey('reviews', [], true);
-  try{
-    const s = await window.storage.get('session', false);
-    session = s ? JSON.parse(s.value) : null;
-  }catch(e){ session = null; }
-}
-async function loadKey(key, fallback, shared){
-  try{
-    const r = await window.storage.get(key, shared);
-    if(r) return JSON.parse(r.value);
-  }catch(e){}
-  await saveKey(key, fallback, shared);
-  return fallback;
-}
-async function saveKey(key, value, shared){
-  try{ await window.storage.set(key, JSON.stringify(value), shared); }
-  catch(e){ toast('تعذر حفظ البيانات'); }
-}
-const saveCenters   = ()=> saveKey('centers', centers, true);
-const saveExperts   = ()=> saveKey('experts', experts, true);
-const savePackages  = ()=> saveKey('packages', packages, true);
-const saveBookings  = ()=> saveKey('bookings', bookings, true);
-const saveCustomers = ()=> saveKey('customers', customers, true);
-const saveReviews   = ()=> saveKey('reviews', reviews, true);
-const saveSession   = ()=> saveKey('session', session, false);
+  centers      = await api.get('/api/centers');
+  experts      = await api.get('/api/experts');
+  packages     = await api.get('/api/packages');
+  reviews      = await api.get('/api/reviews');
+  busyBookings = await api.get('/api/bookings/busy');
 
-function seedCenters(){
-  return [
-    {id:'c1', name:'Glow Beauty Center', city:'بنغازي', location:'الفويهات', about:'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified:true, rating:4.8, status:'approved', departments:['hair','makeup','nails','henna','spa'], username:'glowbeauty', password:'center123', paymentMethods:{}, homeService:true, views:0},
-    {id:'c2', name:'Royal Beauty Center', city:'بنغازي', location:'بن عاشور', about:'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified:true, rating:4.6, status:'approved', departments:['hair','beauty','steam'], username:'royalbeauty', password:'center123', paymentMethods:{}, homeService:false, views:0},
-    {id:'c3', name:'Luna Spa', city:'طرابلس', location:'حي الأندلس', about:'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified:false, rating:4.7, status:'approved', departments:['spa','steam','beauty','cupping'], username:'lunaspa', password:'center123', paymentMethods:{}, homeService:true, views:0}
-  ];
-}
-function seedExperts(){
-  return [
-    {id:'e1', centerId:'c1', department:'hair',   name:'سارة', specialty:'تصفيف وصبغة الشعر', rating:4.9, available:true,  color:COLORS[0], phone:'0920000001', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e2', centerId:'c1', department:'makeup', name:'مايا', specialty:'مكياج سهرة وعرايس', rating:4.8, available:false, color:COLORS[1], phone:'0920000002', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e3', centerId:'c1', department:'nails',  name:'نورا', specialty:'جل ونيل آرت', rating:4.9, available:true,  color:COLORS[2], phone:'0920000003', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e7', centerId:'c1', department:'henna',  name:'آية',  specialty:'حنة عروس ونقشات عصرية', rating:4.9, available:true,  color:COLORS[5], phone:'0920000007', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e4', centerId:'c2', department:'hair',   name:'لينا', specialty:'قص واستشوار', rating:4.7, available:true,  color:COLORS[3], phone:'0920000004', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e5', centerId:'c2', department:'beauty', name:'هدى',  specialty:'فيشل وعناية بالبشرة', rating:4.8, available:false, color:COLORS[4], phone:'0920000005', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e6', centerId:'c3', department:'spa',    name:'أمل',  specialty:'مساج استرخاء', rating:4.9, available:true,  color:COLORS[5], phone:'0920000006', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e8', centerId:'c3', department:'cupping', name:'سلمى', specialty:'حجامة علاجية معتمدة', rating:4.8, available:true,  color:COLORS[0], phone:'0920000008', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]}
-  ];
-}
-function seedPackages(){
-  return [
-    {id:'p1', centerId:'c1', name:'باقة العروس', items:'شعر + مكياج + أظافر', price:650},
-    {id:'p2', centerId:'c1', name:'يوم الجمال', items:'شعر + فيشل + مانيكير + باديكير', price:300}
-  ];
+  const token = api.getToken('customer');
+  if(token){
+    try{
+      const cust = await api.get('/api/customers/me', {auth:'customer'});
+      customers = [cust];
+      bookings = await api.get('/api/bookings/mine', {auth:'customer'});
+      session = {customerId: cust.id};
+    }catch(e){
+      api.clearToken('customer');
+      customers = []; bookings = []; session = null;
+    }
+  } else {
+    customers = []; bookings = []; session = null;
+  }
 }
 
 /* ---------------- AUTH ---------------- */
@@ -498,30 +464,38 @@ document.getElementById('signupBtn').addEventListener('click', async ()=>{
   const phone = document.getElementById('signupPhone').value.trim();
   const password = document.getElementById('signupPassword').value;
   if(!name || !phone || !password){ toast('يرجى تعبئة جميع الحقول'); return; }
-  if(customers.some(c=>c.phone===phone)){ toast('هذا الرقم مسجّل من قبل، جرّبي تسجيل الدخول'); return; }
-  const cust = {id:'u'+Date.now(), name, phone, password, favorites:[]};
-  customers.push(cust);
-  await saveCustomers();
-  session = {customerId:cust.id};
-  await saveSession();
-  enterApp();
-  toast('مرحباً بك في GlowSpot، ' + name + '!');
+  try{
+    const result = await api.post('/api/auth/customer/signup', {name, phone, password});
+    api.setToken('customer', result.token);
+    customers = [result.customer];
+    bookings = [];
+    session = {customerId: result.customer.id};
+    enterApp();
+    toast('مرحباً بك في GlowSpot، ' + name + '!');
+  }catch(e){
+    toast(e.error==='phone_taken' ? 'هذا الرقم مسجّل من قبل، جرّبي تسجيل الدخول' : 'تعذر إنشاء الحساب');
+  }
 });
 
 document.getElementById('loginBtn').addEventListener('click', async ()=>{
   const phone = document.getElementById('loginPhone').value.trim();
   const password = document.getElementById('loginPassword').value;
-  const cust = customers.find(c=>c.phone===phone && c.password===password);
-  if(!cust){ toast('رقم الهاتف أو كلمة المرور غير صحيحة'); return; }
-  session = {customerId:cust.id};
-  await saveSession();
-  enterApp();
-  toast('أهلاً بعودتك، ' + cust.name + '!');
+  try{
+    const result = await api.post('/api/auth/customer/login', {phone, password});
+    api.setToken('customer', result.token);
+    customers = [result.customer];
+    session = {customerId: result.customer.id};
+    bookings = await api.get('/api/bookings/mine', {auth:'customer'});
+    enterApp();
+    toast('أهلاً بعودتك، ' + result.customer.name + '!');
+  }catch(e){
+    toast('رقم الهاتف أو كلمة المرور غير صحيحة');
+  }
 });
 
-document.getElementById('logoutBtn').addEventListener('click', async ()=>{
-  session = null;
-  await saveSession();
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  api.clearToken('customer');
+  session = null; customers = []; bookings = [];
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('viewAuth').classList.add('visible');
 });
@@ -682,7 +656,7 @@ async function toggleFavorite(centerId){
   cust.favorites = cust.favorites || [];
   const idx = cust.favorites.indexOf(centerId);
   if(idx>=0) cust.favorites.splice(idx,1); else cust.favorites.push(centerId);
-  await saveCustomers();
+  try{ await api.patch('/api/customers/me', {favorites: cust.favorites}, {auth:'customer'}); }catch(e){}
   renderCenterList();
   renderFavorites();
   renderTopCentersRow();
@@ -698,7 +672,7 @@ async function toggleFavoriteExpert(expertId){
   cust.favoriteExperts = cust.favoriteExperts || [];
   const idx = cust.favoriteExperts.indexOf(expertId);
   if(idx>=0) cust.favoriteExperts.splice(idx,1); else cust.favoriteExperts.push(expertId);
-  await saveCustomers();
+  try{ await api.patch('/api/customers/me', {favoriteExperts: cust.favoriteExperts}, {auth:'customer'}); }catch(e){}
   renderFavorites();
   if(document.getElementById('viewCenterDetail').classList.contains('visible')) renderCenterDetail();
 }
@@ -787,7 +761,7 @@ function openCenterDetail(centerId){
   activeDetailDept = 'all';
   showView('centerDetail');
   const c = centers.find(x=>x.id===centerId);
-  if(c){ c.views = (c.views||0) + 1; saveCenters(); }
+  if(c){ c.views = (c.views||0) + 1; api.post('/api/centers/'+c.id+'/view').catch(()=>{}); }
   renderCenterDetail();
 }
 document.getElementById('backBtn').addEventListener('click', ()=> showView('explore'));
@@ -932,7 +906,7 @@ function resolveQuickBooking(department){
 }
 
 function hasConflict(expertId, date, startMin, durMin){
-  return bookings.some(b=> b.expertId===expertId && b.date===date && b.status!=='cancelled' && b.status!=='declined'
+  return busyBookings.some(b=> b.expertId===expertId && b.date===date
     && rangesOverlap(startMin, durMin, timeToMin(b.time), b.duration || 60));
 }
 function isSlotTaken(date, startMin, durMin){
@@ -1115,40 +1089,28 @@ function updateConfirmState(){
 
 async function confirmBooking(){
   const c = centers.find(x=>x.id===bk.centerId);
-  let expertId = bk.expertId, expertName = '';
-  let department = bk.department, service = bk.service;
-  let initialStatus = 'pending';
-
-  if(bk.mode==='package'){
-    department='package'; service=bk.pkg.name; expertId=null; expertName=''; initialStatus='confirmed';
-  } else if(expertId === 'any'){
-    const deptExperts = experts.filter(e=>e.centerId===bk.centerId && e.department===bk.department);
-    const startMin = timeToMin(bk.time);
-    const free = deptExperts.find(e => !hasConflict(e.id, bk.date, startMin, getServiceDuration(e.id, bk.service)));
-    if(free){ expertId=free.id; expertName=free.name; } else { toast('عذراً، لا توجد خبيرة متاحة في هذا الوقت'); return; }
-  } else if(expertId){
-    const ex = experts.find(e=>e.id===expertId);
-    expertName = ex ? ex.name : '';
-  }
-
-  const duration = bk.mode==='package' ? 60 : getServiceDuration(expertId, service);
-  const price = bk.mode==='package' ? bk.pkg.price : getServicePrice(expertId, service);
-  const cust = currentCustomer();
-  const booking = {
-    id: Date.now()+'-'+Math.random().toString(36).slice(2,7),
-    centerId: bk.centerId, centerName: c.name,
-    department, service, expertId, expertName,
-    customerId: cust ? cust.id : null,
+  const payload = {
+    centerId: bk.centerId, mode: bk.mode,
+    department: bk.department, service: bk.service, expertId: bk.expertId,
+    pkgId: bk.mode==='package' ? bk.pkg.id : undefined,
+    date: bk.date, time: bk.time,
     customerName: bk.custName.trim(), phone: bk.custPhone.trim(),
-    date: bk.date, time: bk.time, duration, price, status: initialStatus,
-    serviceLocation: bk.serviceLocation || 'center', homeAddress: bk.serviceLocation==='home' ? bk.homeAddress.trim() : ''
+    serviceLocation: bk.serviceLocation || 'center',
+    homeAddress: bk.serviceLocation==='home' ? bk.homeAddress.trim() : ''
   };
-  bookings.push(booking);
-  await saveBookings();
-  document.getElementById('bookOverlay').classList.remove('visible');
-  toast(initialStatus==='pending' ? 'تم إرسال طلب حجزك، بانتظار موافقة الخبيرة ✓' : 'تم تأكيد حجزك في ' + c.name + ' ✓');
-  renderAppointments();
-  checkUpcomingReminder();
+  try{
+    const booking = await api.post('/api/bookings', payload, {auth:'customer'});
+    bookings.push(booking);
+    busyBookings.push({expertId:booking.expertId, date:booking.date, time:booking.time, duration:booking.duration, status:booking.status});
+    document.getElementById('bookOverlay').classList.remove('visible');
+    toast(booking.status==='pending' ? 'تم إرسال طلب حجزك، بانتظار موافقة الخبيرة ✓' : 'تم تأكيد حجزك في ' + c.name + ' ✓');
+    renderAppointments();
+    checkUpcomingReminder();
+  }catch(e){
+    if(e.error==='no_expert_available') toast('عذراً، لا توجد خبيرة متاحة في هذا الوقت');
+    else if(e.error==='slot_taken') toast('عذراً، أصبح هذا الموعد محجوزاً، اختاري وقتاً آخر');
+    else toast('تعذر إتمام الحجز، حاولي مرة أخرى');
+  }
 }
 
 /* ---------------- APPOINTMENTS + REMINDERS ---------------- */
@@ -1157,10 +1119,7 @@ const STATUS_LABELS = {
   completed:'✅ مكتمل', declined:'❌ لم تُقبل', cancelled:'⚫ ملغى', no_show:'🚫 لم تحضري'
 };
 function myBookings(){
-  const cust = currentCustomer();
-  if(!cust) return [];
-  return bookings.filter(b => (b.customerId===cust.id || b.phone===cust.phone))
-    .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  return bookings.slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
 }
 function hoursUntil(dateStr, timeStr){
   const dt = new Date(dateStr+'T'+timeStr+':00');
@@ -1205,7 +1164,11 @@ function renderAppointments(){
   wrap.querySelectorAll('.cancel-link[data-id]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const b = bookings.find(x=>x.id===btn.dataset.id);
-      if(b){ b.status='cancelled'; await saveBookings(); renderAppointments(); toast('تم إلغاء الموعد'); }
+      if(!b) return;
+      try{
+        await api.patch('/api/bookings/'+b.id, {status:'cancelled'}, {auth:'customer'});
+        b.status='cancelled'; renderAppointments(); toast('تم إلغاء الموعد');
+      }catch(e){ toast('تعذر إلغاء الموعد'); }
     });
   });
   wrap.querySelectorAll('[data-review]').forEach(btn=>{
@@ -1239,34 +1202,16 @@ function renderReviewSheet(b){
   document.getElementById('reviewComment').addEventListener('input', e=>{ reviewCtx.comment = e.target.value; });
   document.getElementById('submitReviewBtn').addEventListener('click', ()=> submitReview(b));
 }
-function recomputeRatings(centerId, expertId){
-  const centerReviews = reviews.filter(r=>r.centerId===centerId);
-  if(centerReviews.length){
-    const c = centers.find(x=>x.id===centerId);
-    if(c) c.rating = centerReviews.reduce((s,r)=>s+r.rating,0) / centerReviews.length;
-  }
-  if(expertId){
-    const expertReviews = reviews.filter(r=>r.expertId===expertId);
-    if(expertReviews.length){
-      const e = experts.find(x=>x.id===expertId);
-      if(e) e.rating = expertReviews.reduce((s,r)=>s+r.rating,0) / expertReviews.length;
-    }
-  }
-}
 async function submitReview(b){
-  const cust = currentCustomer();
-  reviews.push({
-    id:'r'+Date.now(), bookingId:b.id, centerId:b.centerId, expertId:b.expertId||null,
-    customerId: cust?cust.id:null, customerName: cust?cust.name:b.customerName,
-    rating: reviewCtx.rating, comment: reviewCtx.comment.trim(), createdAt: new Date().toISOString()
-  });
-  await saveReviews();
-  recomputeRatings(b.centerId, b.expertId);
-  await saveCenters();
-  await saveExperts();
-  document.getElementById('bookOverlay').classList.remove('visible');
-  toast('شكراً على تقييمك! ⭐');
-  renderAppointments();
+  try{
+    const review = await api.post('/api/reviews', {bookingId:b.id, rating:reviewCtx.rating, comment:reviewCtx.comment.trim()}, {auth:'customer'});
+    reviews.push(review);
+    document.getElementById('bookOverlay').classList.remove('visible');
+    toast('شكراً على تقييمك! ⭐');
+    renderAppointments();
+  }catch(e){
+    toast('تعذر إرسال التقييم');
+  }
 }
 function checkUpcomingReminder(){
   const banner = document.getElementById('reminderBanner');

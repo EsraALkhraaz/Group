@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<script src="glowspot-storage-polyfill.js"></script>
+<script src="glowspot-api.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GlowSpot Business — لوحة تحكم المركز</title>
@@ -225,6 +225,7 @@ const DEPARTMENTS = {
   cupping:{ar:'حجامة',          icon:'🔥', services:['حجامة جافة','حجامة رطبة','حجامة الظهر والكتفين']}
 };
 
+const api = window.GlowSpotAPI;
 let centers = [];
 let experts = [];
 let packages = [];
@@ -247,79 +248,39 @@ function initial(name){ return name.trim().charAt(0); }
 function timeToMin(t){ const [h,m] = t.split(':').map(Number); return h*60+m; }
 function minToTime(mins){ const h=Math.floor(mins/60), m=mins%60; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
 
-/* ---------------- storage ---------------- */
-async function loadAll(){
-  centers  = await loadKey('centers', seedCenters());
-  experts  = await loadKey('experts', seedExperts());
-  packages = await loadKey('packages', seedPackages());
-  bookings = await loadKey('bookings', []);
+/* ---------------- storage (real backend via glowspot-api.js) ---------------- */
+async function loadPublicData(){
+  centers  = await api.get('/api/centers');
+  experts  = await api.get('/api/experts');
+  packages = await api.get('/api/packages');
 }
-async function loadKey(key, fallback){
-  try{
-    const r = await window.storage.get(key, true);
-    if(r) return JSON.parse(r.value);
-  }catch(e){}
-  await saveKey(key, fallback);
-  return fallback;
-}
-async function saveKey(key, value){
-  try{ await window.storage.set(key, JSON.stringify(value), true); }
-  catch(e){ toast('تعذر حفظ البيانات'); }
-}
-const saveCenters  = ()=> saveKey('centers', centers);
-const saveExperts  = ()=> saveKey('experts', experts);
-const savePackages = ()=> saveKey('packages', packages);
-const saveBookings = ()=> saveKey('bookings', bookings);
-const saveSession  = ()=> saveKey2('dashSession', dashSession, false);
-async function saveKey2(key, value, shared){
-  try{ await window.storage.set(key, JSON.stringify(value), shared); }
-  catch(e){ toast('تعذر حفظ البيانات'); }
-}
-
-function seedCenters(){
-  return [
-    {id:'c1', name:'Glow Beauty Center', city:'بنغازي', location:'الفويهات', about:'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified:true, rating:4.8, status:'approved', departments:['hair','makeup','nails','henna','spa'], username:'glowbeauty', password:'center123', paymentMethods:{}, homeService:true, views:0},
-    {id:'c2', name:'Royal Beauty Center', city:'بنغازي', location:'بن عاشور', about:'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified:true, rating:4.6, status:'approved', departments:['hair','beauty','steam'], username:'royalbeauty', password:'center123', paymentMethods:{}, homeService:false, views:0},
-    {id:'c3', name:'Luna Spa', city:'طرابلس', location:'حي الأندلس', about:'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified:false, rating:4.7, status:'approved', departments:['spa','steam','beauty','cupping'], username:'lunaspa', password:'center123', paymentMethods:{}, homeService:true, views:0}
-  ];
-}
-function seedExperts(){
-  return [
-    {id:'e1', centerId:'c1', department:'hair',   name:'سارة', specialty:'تصفيف وصبغة الشعر', rating:4.9, available:true,  color:COLORS[0], phone:'0920000001', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e2', centerId:'c1', department:'makeup', name:'مايا', specialty:'مكياج سهرة وعرايس', rating:4.8, available:false, color:COLORS[1], phone:'0920000002', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e3', centerId:'c1', department:'nails',  name:'نورا', specialty:'جل ونيل آرت', rating:4.9, available:true,  color:COLORS[2], phone:'0920000003', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e7', centerId:'c1', department:'henna',  name:'آية',  specialty:'حنة عروس ونقشات عصرية', rating:4.9, available:true,  color:COLORS[5], phone:'0920000007', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e4', centerId:'c2', department:'hair',   name:'لينا', specialty:'قص واستشوار', rating:4.7, available:true,  color:COLORS[3], phone:'0920000004', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e5', centerId:'c2', department:'beauty', name:'هدى',  specialty:'فيشل وعناية بالبشرة', rating:4.8, available:false, color:COLORS[4], phone:'0920000005', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e6', centerId:'c3', department:'spa',    name:'أمل',  specialty:'مساج استرخاء', rating:4.9, available:true,  color:COLORS[5], phone:'0920000006', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e8', centerId:'c3', department:'cupping', name:'سلمى', specialty:'حجامة علاجية معتمدة', rating:4.8, available:true,  color:COLORS[0], phone:'0920000008', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]}
-  ];
-}
-function seedPackages(){
-  return [
-    {id:'p1', centerId:'c1', name:'باقة العروس', items:'شعر + مكياج + أظافر', price:650},
-    {id:'p2', centerId:'c1', name:'يوم الجمال', items:'شعر + فيشل + مانيكير + باديكير', price:300}
-  ];
+async function loadMyBookings(){
+  bookings = await api.get('/api/bookings/center-mine', {auth:'center'});
 }
 
 /* ---------------- AUTH ---------------- */
 document.getElementById('gateBtn').addEventListener('click', async ()=>{
   const username = document.getElementById('centerUsername').value.trim();
   const password = document.getElementById('centerPassword').value;
-  const c = centers.find(x=>x.username===username && x.password===password);
-  if(!c){ toast('اسم المستخدم أو كلمة المرور غير صحيحة'); return; }
-  dashCenterId = c.id;
-  dashSession = {centerId:c.id};
-  await saveSession();
-  enterDash();
+  try{
+    const result = await api.post('/api/auth/center/login', {username, password});
+    api.setToken('center', result.token);
+    dashCenterId = result.center.id;
+    dashSession = {centerId: result.center.id};
+    await enterDash();
+  }catch(e){
+    toast('اسم المستخدم أو كلمة المرور غير صحيحة');
+  }
 });
-document.getElementById('logoutBtn').addEventListener('click', async ()=>{
-  dashSession = null;
-  await saveSession();
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  api.clearToken('center');
+  dashSession = null; dashCenterId = null;
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('viewGate').classList.remove('visible');
 });
-function enterDash(){
+async function enterDash(){
+  await loadPublicData();
+  await loadMyBookings();
   document.getElementById('viewGate').classList.remove('visible');
   document.getElementById('mainApp').classList.remove('hidden');
   renderDashboard();
@@ -464,8 +425,10 @@ function renderDashboard(){
     c.city = document.getElementById('editCity').value.trim() || c.city;
     c.location = document.getElementById('editLocation').value.trim();
     c.about = document.getElementById('editAbout').value.trim();
-    await saveCenters();
-    toast('تم حفظ بيانات المركز');
+    try{
+      await api.patch('/api/centers/'+c.id, {name:c.name, city:c.city, location:c.location, about:c.about}, {auth:'center'});
+      toast('تم حفظ بيانات المركز');
+    }catch(e){ toast('تعذر حفظ البيانات'); }
   });
 
   document.querySelectorAll('#deptToggles .toggle-pill').forEach(pill=>{
@@ -473,14 +436,14 @@ function renderDashboard(){
       const d = pill.dataset.d;
       const idx = c.departments.indexOf(d);
       if(idx>=0) c.departments.splice(idx,1); else c.departments.push(d);
-      await saveCenters();
+      try{ await api.patch('/api/centers/'+c.id, {departments:c.departments}, {auth:'center'}); }catch(e){}
       renderDashboard();
     });
   });
 
   document.getElementById('homeServiceToggle').addEventListener('click', async ()=>{
     c.homeService = !c.homeService;
-    await saveCenters();
+    try{ await api.patch('/api/centers/'+c.id, {homeService:c.homeService}, {auth:'center'}); }catch(e){}
     renderDashboard();
   });
 
@@ -488,7 +451,7 @@ function renderDashboard(){
     pill.addEventListener('click', async ()=>{
       c.paymentMethods = c.paymentMethods || {};
       c.paymentMethods[pill.dataset.pmCash] = 'cash';
-      await saveCenters();
+      try{ await api.patch('/api/centers/'+c.id, {paymentMethods:c.paymentMethods}, {auth:'center'}); }catch(e){}
       renderDashboard();
     });
   });
@@ -496,7 +459,7 @@ function renderDashboard(){
     pill.addEventListener('click', async ()=>{
       c.paymentMethods = c.paymentMethods || {};
       c.paymentMethods[pill.dataset.pmBoth] = 'cash_card';
-      await saveCenters();
+      try{ await api.patch('/api/centers/'+c.id, {paymentMethods:c.paymentMethods}, {auth:'center'}); }catch(e){}
       renderDashboard();
     });
   });
@@ -505,30 +468,38 @@ function renderDashboard(){
     sw.addEventListener('click', async ()=>{
       const ex = experts.find(e=>e.id===sw.dataset.avail);
       ex.available = !ex.available;
-      await saveExperts();
+      try{ await api.patch('/api/experts/'+ex.id, {available:ex.available}, {auth:'center'}); }catch(e){}
       renderDashboard();
     });
   });
   document.querySelectorAll('[data-remove-expert]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      experts = experts.filter(e=>e.id!==btn.dataset.removeExpert);
-      await saveExperts();
-      renderDashboard();
-      toast('تم حذف العضوة من الفريق');
+      try{
+        await api.del('/api/experts/'+btn.dataset.removeExpert, {auth:'center'});
+        experts = experts.filter(e=>e.id!==btn.dataset.removeExpert);
+        renderDashboard();
+        toast('تم حذف العضوة من الفريق');
+      }catch(e){ toast('تعذر الحذف'); }
     });
   });
   document.querySelectorAll('[data-remove-package]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      packages = packages.filter(p=>p.id!==btn.dataset.removePackage);
-      await savePackages();
-      renderDashboard();
-      toast('تم حذف الباقة');
+      try{
+        await api.del('/api/packages/'+btn.dataset.removePackage, {auth:'center'});
+        packages = packages.filter(p=>p.id!==btn.dataset.removePackage);
+        renderDashboard();
+        toast('تم حذف الباقة');
+      }catch(e){ toast('تعذر الحذف'); }
     });
   });
   document.querySelectorAll('[data-cancel-booking]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const b = bookings.find(x=>x.id===btn.dataset.cancelBooking);
-      if(b){ b.status='cancelled'; await saveBookings(); renderDashboard(); toast('تم إلغاء الحجز'); }
+      if(!b) return;
+      try{
+        await api.patch('/api/bookings/'+b.id, {status:'cancelled'}, {auth:'center'});
+        b.status='cancelled'; renderDashboard(); toast('تم إلغاء الحجز');
+      }catch(e){ toast('تعذر إلغاء الحجز'); }
     });
   });
   document.querySelectorAll('[data-approve-leave]').forEach(btn=>{
@@ -536,7 +507,12 @@ function renderDashboard(){
       const [expertId, date] = btn.dataset.approveLeave.split('::');
       const ex = experts.find(x=>x.id===expertId);
       const lr = ex && ex.leaveRequests.find(l=>l.date===date && l.status==='pending');
-      if(lr){ lr.status='approved'; await saveExperts(); renderDashboard(); toast('تمت الموافقة على الإجازة'); }
+      if(!lr) return;
+      lr.status='approved';
+      try{
+        await api.patch('/api/experts/'+ex.id, {leaveRequests:ex.leaveRequests}, {auth:'center'});
+        renderDashboard(); toast('تمت الموافقة على الإجازة');
+      }catch(e){ toast('تعذر الحفظ'); }
     });
   });
 
@@ -549,10 +525,14 @@ function renderDashboard(){
     const password = document.getElementById('newExpertPassword').value.trim();
     if(!name || !department){ toast('يرجى إدخال الاسم واختيار القسم'); return; }
     if(!phone || !password){ toast('يرجى إدخال رقم الهاتف وكلمة مرور مبدئية حتى تسجّل دخولها للوحتها'); return; }
-    experts.push({id:'e'+Date.now(), centerId:c.id, department, name, specialty: specialty||'خدمات عامة', rating:5.0, available:true, color:COLORS[experts.length % COLORS.length], phone, password, servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]});
-    await saveExperts();
-    renderDashboard();
-    toast('تمت إضافة ' + name + ' إلى الفريق — تقدر تسجّل دخولها بهاتفها وكلمة المرور في تطبيق الفريق');
+    try{
+      const created = await api.post('/api/experts', {department, name, specialty: specialty||'خدمات عامة', phone, password}, {auth:'center'});
+      experts.push(created);
+      renderDashboard();
+      toast('تمت إضافة ' + name + ' إلى الفريق — تقدر تسجّل دخولها بهاتفها وكلمة المرور في تطبيق الفريق');
+    }catch(e){
+      toast(e.error==='phone_taken' ? 'رقم الهاتف هذا مستخدم من قبل' : 'تعذر إضافة العضوة');
+    }
   });
 
   document.getElementById('addPkgBtn').addEventListener('click', async ()=>{
@@ -560,23 +540,26 @@ function renderDashboard(){
     const items = document.getElementById('newPkgItems').value.trim();
     const price = parseFloat(document.getElementById('newPkgPrice').value) || 0;
     if(!name){ toast('يرجى إدخال اسم الباقة'); return; }
-    packages.push({id:'p'+Date.now(), centerId:c.id, name, items, price});
-    await savePackages();
-    renderDashboard();
-    toast('تمت إضافة الباقة');
+    try{
+      const created = await api.post('/api/packages', {name, items, price}, {auth:'center'});
+      packages.push(created);
+      renderDashboard();
+      toast('تمت إضافة الباقة');
+    }catch(e){ toast('تعذر إضافة الباقة'); }
   });
 }
 
 /* ---------------- INIT ---------------- */
 (async function init(){
-  await loadAll();
+  const token = api.getToken('center');
+  if(!token) return;
   try{
-    const s = await window.storage.get('dashSession', false);
-    dashSession = s ? JSON.parse(s.value) : null;
-  }catch(e){ dashSession = null; }
-  if(dashSession && centers.find(c=>c.id===dashSession.centerId)){
-    dashCenterId = dashSession.centerId;
-    enterDash();
+    const center = await api.get('/api/centers/me', {auth:'center'});
+    dashCenterId = center.id;
+    dashSession = {centerId: center.id};
+    await enterDash();
+  }catch(e){
+    api.clearToken('center');
   }
 })();
 </script>

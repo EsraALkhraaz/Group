@@ -1,6 +1,6 @@
 # GlowSpot — منصة حجز خدمات التجميل والعناية في ليبيا
 
-نماذج تفاعلية (Prototypes) لمنصة GlowSpot، مكوّنة من أربعة تطبيقات منفصلة تتشارك نفس قاعدة البيانات.
+نسخة MVP لمنصة GlowSpot: أربعة تطبيقات (عميلة، مركز، خبيرة، إدارة) تتصل بخادم حقيقي واحد (`server/`) بدل التخزين المحلي بالمتصفح — بيانات دائمة، كلمات مرور مُشفّرة لا تُرسل أبداً للمتصفح، وتحقق فعلي من الصلاحيات وتعارض المواعيد على الخادم نفسه.
 
 ---
 
@@ -8,11 +8,18 @@
 
 ```
 GlowSpot-Project/
-├── apps/            ← التطبيقات الأربعة (افتحيها بالمتصفح)
+├── server/          ← الخادم الحقيقي (Node.js + Express + SQLite) — شغّليه أولاً
+├── apps/            ← التطبيقات الأربعة (تُفتح من خلال الخادم، راجعي server/README.md)
 ├── branding/        ← الشعار والهوية البصرية (النسخة المعتمدة)
 ├── documents/       ← الكتالوج ونموذج الموافقة المبدئية
 └── archive/         ← نسخ قديمة/مستبدلة (للرجوع فقط)
 ```
+
+**للتشغيل:**
+```bash
+cd server && npm install && npm start
+```
+ثم افتحي `http://localhost:3000/glowspot-customer.html` (والباقي بنفس الطريقة — راجعي `server/README.md` للتفاصيل والإعدادات).
 
 ---
 
@@ -29,18 +36,20 @@ GlowSpot-Project/
 - المراكز: `royalbeauty` / `center123` — `lunaspa` / `center123`
 - الخبيرات (كلمة المرور للجميع `expert123`): 0920000002 مايا (مكياج)، 0920000003 نورا (أظافر)، 0920000007 آية (حنة)، 0920000004 لينا (شعر)، 0920000005 هدى (عناية)، 0920000006 أمل (سبا)، 0920000008 سلمى (حجامة)
 
-⚠️ هذي بيانات تجريبية للعرض فقط، وليست نظام حماية حقيقي.
+هذي نفس بيانات الدخول التجريبية السابقة، لكنها الآن حسابات حقيقية على الخادم (كلمة المرور مُشفّرة في قاعدة البيانات، ما تُرسل أبداً للمتصفح).
 
 ---
 
 ## 🗂️ نموذج البيانات
 
-- **centers**: id, name, city, location, about, verified, rating, status, departments[], username, password, paymentMethods{}, homeService, views
-- **experts**: id, centerId, department, name, specialty, rating, available, phone, password, servicePrices{}, serviceDurations{}, workingHours{}, leaveRequests[], clientNotes{}
+- **centers**: id, name, city, location, about, verified, rating, status, departments[], username, paymentMethods{}, homeService, views
+- **experts**: id, centerId, department, name, specialty, rating, available, phone, servicePrices{}, serviceDurations{}, workingHours{}, leaveRequests[], clientNotes{}
 - **bookings**: id, centerId, centerName, department, service, expertId, expertName, customerId, customerName, phone, date, time, duration, price, status, serviceLocation, homeAddress, declineReason, alternatives[]
-- **customers**: id, name, phone, password, favorites[], favoriteExperts[]
+- **customers**: id, name, phone, favorites[], favoriteExperts[]
 - **packages**: id, centerId, name, items, price
 - **reviews**: id, bookingId, centerId, expertId, customerId, customerName, rating, comment, createdAt
+
+كلمات المرور لم تعد جزءاً من هذي النماذج على الإطلاق — تُخزَّن مُشفّرة (bcrypt) في جدول منفصل بقاعدة بيانات الخادم، ولا تُرسل أبداً لأي تطبيق.
 
 **الأقسام الثمانية:** شعر · مكياج · أظافر · حنة · سبا · حمام بخار · عناية وجمال · حجامة
 
@@ -78,16 +87,17 @@ pending → confirmed → in_service → completed → (تقييم)
 - الصور الحقيقية للمراكز (مستبدلة بتدرجات لونية)
 - الإشعارات خارج التطبيق (Push Notifications)
 - نظام تتبّع العمولات
+- إثبات ملكية رقم الهاتف عند التسجيل (SMS OTP)، وتحديد لمعدّل الطلبات (rate limiting)
 
 ---
 
 ## ⚙️ ملاحظات تقنية
 
-- كل تطبيق ملف HTML واحد مستقل، يُفتح مباشرة بالمتصفح دون خادم
-- البيانات تُحفظ عبر `window.storage` وتتشارك بين التطبيقات الأربعة
-- هذي **نماذج تفاعلية للعرض والتجربة**، وليست جاهزة للإنتاج: لا يوجد تشفير لكلمات المرور، ولا خادم خلفي، ولا تحقق أمني حقيقي
+- الآن يوجد **خادم حقيقي** (`server/` — Node.js + Express + SQLite): بيانات دائمة، كلمات مرور مُشفّرة بـ bcrypt لا تُرسل أبداً للمتصفح، جلسات دخول بتوكن موقّع (JWT)، وتحقق فعلي من الصلاحيات وتعارض المواعيد يحدث على الخادم نفسه لا في المتصفح فقط
+- التطبيقات الأربعة تُفتح **من خلال الخادم** (وليس كملفات محلية مستقلة كما في النسخة السابقة) لأنها تتواصل معه عبر `/api/...` — راجعي `server/README.md`
+- هذي نسخة **MVP**، وليست جاهزة كاملة للإنتاج بعد: قاعدة بيانات SQLite بسيطة (تكفي لحجم استخدام MVP)، ولا يوجد تحقق SMS عند التسجيل، ولا حماية من إساءة الاستخدام (rate limiting)، ولا معالجة دفع حقيقية
 
-**للانتقال لتطبيق حقيقي:** React Native عبر Expo للواجهة + Firebase للخلفية (Authentication + Firestore + Cloud Messaging).
+**للانتقال لتطبيق موبايل حقيقي:** React Native عبر Expo للواجهة (تتصل بنفس هذا الخادم أو بنسخة منه على Postgres/Firestore) + إشعارات Push حقيقية.
 
 ---
 

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<script src="glowspot-storage-polyfill.js"></script>
+<script src="glowspot-api.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GlowSpot Staff — لوحة الخبيرة</title>
@@ -208,7 +208,8 @@ const STATUS_META = {
 const WEEKDAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
 const WEEKDAY_LABELS = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 
-let centers=[], experts=[], bookings=[], customers=[], reviews=[];
+const api = window.GlowSpotAPI;
+let centers=[], experts=[], bookings=[], reviews=[];
 let staffSession = null; // {expertId}
 let activeTab = 'home';
 let decliningId = null;
@@ -228,63 +229,38 @@ function bookingTimeRange(b){
   return b.time + ' – ' + minToTime(timeToMin(b.time) + dur) + ' (' + dur + ' د)';
 }
 
-async function loadAll(){
-  centers   = await loadKey('centers', seedCenters(), true);
-  experts   = await loadKey('experts', seedExperts(), true);
-  bookings  = await loadKey('bookings', [], true);
-  customers = await loadKey('customers', [], true);
-  reviews   = await loadKey('reviews', [], true);
-  try{ const s = await window.storage.get('staffSession', false); staffSession = s ? JSON.parse(s.value) : null; }catch(e){ staffSession = null; }
+async function loadPublicData(){
+  centers = await api.get('/api/centers');
+  experts = await api.get('/api/experts');
+  reviews = await api.get('/api/reviews');
 }
-function seedCenters(){
-  return [
-    {id:'c1', name:'Glow Beauty Center', city:'بنغازي', location:'الفويهات', about:'مركز متكامل للعناية بالشعر والمكياج والأظافر والسبا في أجواء مريحة وخاصة.', verified:true, rating:4.8, status:'approved', departments:['hair','makeup','nails','henna','spa'], username:'glowbeauty', password:'center123', paymentMethods:{}, homeService:true, views:0},
-    {id:'c2', name:'Royal Beauty Center', city:'بنغازي', location:'بن عاشور', about:'خبرات معتمدة في الشعر والعناية بالبشرة والحمام المغربي.', verified:true, rating:4.6, status:'approved', departments:['hair','beauty','steam'], username:'royalbeauty', password:'center123', paymentMethods:{}, homeService:false, views:0},
-    {id:'c3', name:'Luna Spa', city:'طرابلس', location:'حي الأندلس', about:'وجهتك للاسترخاء: سبا وحمام بخار وعناية كاملة بالجسم.', verified:false, rating:4.7, status:'approved', departments:['spa','steam','beauty','cupping'], username:'lunaspa', password:'center123', paymentMethods:{}, homeService:true, views:0}
-  ];
+async function loadMyBookings(){
+  bookings = await api.get('/api/bookings/expert-mine', {auth:'expert'});
 }
-function seedExperts(){
-  return [
-    {id:'e1', centerId:'c1', department:'hair',   name:'سارة', specialty:'تصفيف وصبغة الشعر', rating:4.9, available:true,  color:COLORS[0], phone:'0920000001', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e2', centerId:'c1', department:'makeup', name:'مايا', specialty:'مكياج سهرة وعرايس', rating:4.8, available:false, color:COLORS[1], phone:'0920000002', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e3', centerId:'c1', department:'nails',  name:'نورا', specialty:'جل ونيل آرت', rating:4.9, available:true,  color:COLORS[2], phone:'0920000003', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e7', centerId:'c1', department:'henna',  name:'آية',  specialty:'حنة عروس ونقشات عصرية', rating:4.9, available:true,  color:COLORS[5], phone:'0920000007', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e4', centerId:'c2', department:'hair',   name:'لينا', specialty:'قص واستشوار', rating:4.7, available:true,  color:COLORS[3], phone:'0920000004', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e5', centerId:'c2', department:'beauty', name:'هدى',  specialty:'فيشل وعناية بالبشرة', rating:4.8, available:false, color:COLORS[4], phone:'0920000005', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e6', centerId:'c3', department:'spa',    name:'أمل',  specialty:'مساج استرخاء', rating:4.9, available:true,  color:COLORS[5], phone:'0920000006', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]},
-    {id:'e8', centerId:'c3', department:'cupping', name:'سلمى', specialty:'حجامة علاجية معتمدة', rating:4.8, available:true,  color:COLORS[0], phone:'0920000008', password:'expert123', servicePrices:{}, serviceDurations:{}, workingHours:{}, leaveRequests:[]}
-  ];
-}
-async function loadKey(key, fallback, shared){
-  try{ const r = await window.storage.get(key, shared); if(r) return JSON.parse(r.value); }catch(e){}
-  return fallback;
-}
-async function saveKey(key, value, shared){
-  try{ await window.storage.set(key, JSON.stringify(value), shared); }
-  catch(e){ toast('تعذر حفظ البيانات'); }
-}
-const saveExperts  = ()=> saveKey('experts', experts, true);
-const saveBookings = ()=> saveKey('bookings', bookings, true);
-const saveSession  = ()=> saveKey('staffSession', staffSession, false);
 
 /* ---------------- AUTH ---------------- */
 document.getElementById('gateBtn').addEventListener('click', async ()=>{
   const phone = document.getElementById('staffPhone').value.trim();
   const password = document.getElementById('staffPassword').value;
-  const ex = experts.find(e=>e.phone===phone && e.password===password);
-  if(!ex){ toast('رقم الهاتف أو كلمة المرور غير صحيحة'); return; }
-  staffSession = {expertId: ex.id};
-  await saveSession();
-  enterApp();
+  try{
+    const result = await api.post('/api/auth/expert/login', {phone, password});
+    api.setToken('expert', result.token);
+    staffSession = {expertId: result.expert.id};
+    await enterApp();
+  }catch(e){
+    toast('رقم الهاتف أو كلمة المرور غير صحيحة');
+  }
 });
-document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  api.clearToken('expert');
   staffSession = null;
-  await saveSession();
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('viewGate').classList.remove('visible');
 });
 
-function enterApp(){
+async function enterApp(){
+  await loadPublicData();
+  await loadMyBookings();
   document.getElementById('viewGate').classList.remove('visible');
   document.getElementById('mainApp').classList.remove('hidden');
   renderHeader();
@@ -355,8 +331,8 @@ function bindClientPanel(wrap){
       const ex = me();
       ex.clientNotes = ex.clientNotes || {};
       ex.clientNotes[ta.dataset.noteFor] = ta.value;
-      await saveExperts();
-      toast('تم حفظ الملاحظة');
+      try{ await api.patch('/api/experts/'+ex.id, {clientNotes:ex.clientNotes}, {auth:'expert'}); toast('تم حفظ الملاحظة'); }
+      catch(e){ toast('تعذر حفظ الملاحظة'); }
     });
   });
 }
@@ -444,28 +420,33 @@ function bindStatusActions(wrap){
 async function setStatus(bookingId, status){
   const b = bookings.find(x=>x.id===bookingId);
   if(!b) return;
-  b.status = status;
-  await saveBookings();
-  toast('تم تحديث حالة الموعد');
-  renderHome(); renderCalendar();
+  try{
+    await api.patch('/api/bookings/'+bookingId, {status}, {auth:'expert'});
+    b.status = status;
+    toast('تم تحديث حالة الموعد');
+    renderHome(); renderCalendar();
+  }catch(e){ toast('تعذر تحديث الحالة'); }
 }
 async function acceptBooking(id){
   const b = bookings.find(x=>x.id===id);
   if(!b) return;
-  b.status = 'confirmed';
-  await saveBookings();
-  toast('تم قبول الحجز ✓');
-  renderHome();
+  try{
+    await api.patch('/api/bookings/'+id, {status:'confirmed'}, {auth:'expert'});
+    b.status = 'confirmed';
+    toast('تم قبول الحجز ✓');
+    renderHome();
+  }catch(e){ toast('تعذر قبول الحجز'); }
 }
 async function declineBooking(id){
   if(!declineReason){ toast('يرجى اختيار سبب الرفض'); return; }
   const b = bookings.find(x=>x.id===id);
   if(!b) return;
-  b.status = 'declined';
-  b.declineReason = declineReason;
   const ex = me();
   const bStart = timeToMin(b.time);
   const rangesOverlap = (aStart,aDur,bStartT,bDur)=> aStart < bStartT+bDur && bStartT < aStart+aDur;
+  // NOTE: alternatives are suggested from this expert's own view of bookings and may be
+  // slightly stale versus other experts' very latest bookings; the server re-validates
+  // any actual re-booking attempt against real conflicts regardless.
   const alternatives = experts.filter(e=>e.id!==ex.id && e.centerId===ex.centerId && e.department===ex.department && e.available)
     .filter(e=>{
       const dur = (e.serviceDurations && e.serviceDurations[b.service]) || b.duration || 60;
@@ -473,11 +454,13 @@ async function declineBooking(id){
         && rangesOverlap(bStart, b.duration||60, timeToMin(x.time), x.duration||60));
     })
     .slice(0,3).map(e=>({expertId:e.id, expertName:e.name}));
-  b.alternatives = alternatives;
-  await saveBookings();
-  decliningId = null; declineReason = null;
-  toast('تم رفض الطلب' + (alternatives.length ? ' — تم اقتراح بدائل للعميلة' : ''));
-  renderHome();
+  try{
+    await api.patch('/api/bookings/'+id, {status:'declined', declineReason, alternatives}, {auth:'expert'});
+    b.status = 'declined'; b.declineReason = declineReason; b.alternatives = alternatives;
+    decliningId = null; declineReason = null;
+    toast('تم رفض الطلب' + (alternatives.length ? ' — تم اقتراح بدائل للعميلة' : ''));
+    renderHome();
+  }catch(e){ toast('تعذر رفض الطلب'); }
 }
 
 /* ---------------- CALENDAR ---------------- */
@@ -532,16 +515,18 @@ function renderServices(){
   document.querySelectorAll('[data-svc]').forEach(inp=>{
     inp.addEventListener('change', async ()=>{
       ex.servicePrices[inp.dataset.svc] = parseFloat(inp.value) || 0;
-      await saveExperts();
-      toast('تم حفظ السعر');
+      try{ await api.patch('/api/experts/'+ex.id, {servicePrices:ex.servicePrices}, {auth:'expert'}); toast('تم حفظ السعر'); }
+      catch(e){ toast('تعذر حفظ السعر'); }
     });
   });
   document.querySelectorAll('[data-dur]').forEach(inp=>{
     inp.addEventListener('change', async ()=>{
       const val = parseInt(inp.value) || 0;
       ex.serviceDurations[inp.dataset.dur] = val > 0 ? val : 60;
-      await saveExperts();
-      toast('تم حفظ مدة الخدمة — العميلات سيرين مواعيد مقسّمة حسب هذي المدة');
+      try{
+        await api.patch('/api/experts/'+ex.id, {serviceDurations:ex.serviceDurations}, {auth:'expert'});
+        toast('تم حفظ مدة الخدمة — العميلات سيرين مواعيد مقسّمة حسب هذي المدة');
+      }catch(e){ toast('تعذر حفظ المدة'); }
     });
   });
 }
@@ -576,8 +561,8 @@ function renderAvailability(){
       ex.workingHours[k].open = openInp.value;
       ex.workingHours[k].close = closeInp.value;
     });
-    await saveExperts();
-    toast('تم حفظ ساعات العمل');
+    try{ await api.patch('/api/experts/'+ex.id, {workingHours:ex.workingHours}, {auth:'expert'}); toast('تم حفظ ساعات العمل'); }
+    catch(e){ toast('تعذر حفظ ساعات العمل'); }
   };
 
   ex.leaveRequests = ex.leaveRequests || [];
@@ -597,11 +582,14 @@ document.getElementById('requestLeaveBtn').addEventListener('click', async ()=>{
   if(!date){ toast('يرجى اختيار تاريخ'); return; }
   ex.leaveRequests = ex.leaveRequests || [];
   if(ex.leaveRequests.some(l=>l.date===date)){ toast('يوجد طلب إجازة بهذا التاريخ مسبقاً'); return; }
-  ex.leaveRequests.push({date, status:'pending'});
-  await saveExperts();
-  document.getElementById('leaveDate').value = '';
-  toast('تم إرسال طلب الإجازة لصاحبة المركز');
-  renderAvailability();
+  const updated = ex.leaveRequests.concat([{date, status:'pending'}]);
+  try{
+    await api.patch('/api/experts/'+ex.id, {leaveRequests:updated}, {auth:'expert'});
+    ex.leaveRequests = updated;
+    document.getElementById('leaveDate').value = '';
+    toast('تم إرسال طلب الإجازة لصاحبة المركز');
+    renderAvailability();
+  }catch(e){ toast('تعذر إرسال طلب الإجازة'); }
 });
 
 /* ---------------- NOTIFICATIONS ---------------- */
@@ -639,8 +627,15 @@ function renderReviews(){
 
 /* ---------------- INIT ---------------- */
 (async function init(){
-  await loadAll();
-  if(staffSession && me()) enterApp();
+  const token = api.getToken('expert');
+  if(!token) return;
+  try{
+    const expert = await api.get('/api/experts/me', {auth:'expert'});
+    staffSession = {expertId: expert.id};
+    await enterApp();
+  }catch(e){
+    api.clearToken('expert');
+  }
 })();
 </script>
 </body>
