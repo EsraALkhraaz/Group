@@ -145,6 +145,13 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-col
 /* dashboard */
 .dash-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:15px;margin-bottom:14px;}
 .dash-card h4{margin:0 0 10px;font-size:14px;font-weight:800;color:var(--maroon-dark);}
+
+.review-card{background:var(--blush);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin-bottom:10px;}
+.review-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.review-name{font-weight:800;font-size:13px;color:var(--ink);}
+.review-stars{color:var(--gold);font-size:13px;letter-spacing:1px;}
+.review-comment{font-size:12.5px;color:var(--ink);line-height:1.6;}
+.review-target{font-size:11px;color:var(--muted);margin-top:4px;}
 .toggle-pill{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:#fff;border-radius:13px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;margin:0 4px 8px 0;color:var(--ink);}
 .toggle-pill.active{background:var(--maroon);border-color:var(--maroon);color:#fff;}
 .list-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
@@ -235,6 +242,7 @@ let centers = [];
 let experts = [];
 let packages = [];
 let bookings = [];
+let reviews = [];
 let dashCenterId = null;
 let dashSession = null;
 
@@ -258,6 +266,7 @@ async function loadPublicData(){
   centers  = await api.get('/api/centers');
   experts  = await api.get('/api/experts');
   packages = await api.get('/api/packages');
+  reviews  = await api.get('/api/reviews');
 }
 async function loadMyBookings(){
   bookings = await api.get('/api/bookings/center-mine', {auth:'center'});
@@ -300,6 +309,8 @@ function renderDashboard(){
   const myPackages = packages.filter(p=>p.centerId===c.id);
   const myBookings = bookings.filter(b=>b.centerId===c.id)
     .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  const myReviews = reviews.filter(r=>r.centerId===c.id)
+    .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
 
   const statusLabel = c.status==='approved' ? '✅ مفعّل ومرئي للعميلات' : c.status==='disabled' ? '🔒 معطّل من إدارة GlowSpot' : '⏳ قيد المراجعة من إدارة GlowSpot';
   area.innerHTML = `
@@ -409,6 +420,22 @@ function renderDashboard(){
           </div>
         `)).join('') || '<div class="empty-state">لا توجد طلبات إجازة معلّقة</div>'}
       </div>
+    </div>
+
+    <div class="dash-card">
+      <h4>آراء العميلات (${myReviews.length})</h4>
+      ${myReviews.length===0 ? '<div class="empty-state">لا توجد تقييمات بعد</div>' :
+        myReviews.slice(0,15).map(r=>{
+          const ex = experts.find(x=>x.id===r.expertId);
+          return `<div class="review-card">
+            <div class="review-top">
+              <span class="review-name">${r.customerName||'عميلة'}</span>
+              <span class="review-stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>
+            </div>
+            ${r.comment ? `<div class="review-comment">${r.comment}</div>` : ''}
+            ${ex ? `<div class="review-target">مع ${ex.name}</div>` : ''}
+          </div>`;
+        }).join('')}
     </div>
 
     <div class="dash-card">

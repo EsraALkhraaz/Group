@@ -135,6 +135,12 @@ main{padding:0 16px 4px;}
 
 .expert-group-label{font-size:13px;font-weight:800;color:var(--maroon-dark);margin:14px 2px 8px;}
 .expert-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:11px;}
+.review-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin-bottom:10px;}
+.review-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.review-name{font-weight:800;font-size:13px;color:var(--ink);}
+.review-stars{color:var(--gold);font-size:13px;letter-spacing:1px;}
+.review-comment{font-size:12.5px;color:var(--ink);line-height:1.6;}
+.review-target{font-size:11px;color:var(--muted);margin-top:4px;}
 .gallery-strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}
 .gallery-thumb{flex-shrink:0;width:88px;height:88px;border-radius:12px;overflow:hidden;background:var(--line);cursor:pointer;}
 .gallery-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
@@ -848,6 +854,8 @@ function renderCenterDetail(){
       ${c.departments.map(d=>`<span class="dept-pill ${activeDetailDept===d?'active':''}" data-d="${d}">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</span>`).join('')}
     </div>
     <div id="expertGroups"></div>
+
+    <div id="centerReviewsSection"></div>
   `;
 
   body.querySelector('.fav-btn').addEventListener('click', ()=> toggleFavorite(c.id));
@@ -899,6 +907,29 @@ function renderCenterDetail(){
   body.querySelectorAll('[data-center-photo]').forEach(thumb=>{
     thumb.addEventListener('click', ()=> openEnlargedPhoto(c.gallery[parseInt(thumb.dataset.centerPhoto)]));
   });
+
+  renderCenterReviews(c);
+}
+
+function renderCenterReviews(c){
+  const wrap = document.getElementById('centerReviewsSection');
+  if(!wrap) return;
+  const centerReviews = reviews.filter(r=>r.centerId===c.id).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  if(centerReviews.length===0){ wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `
+    <p class="section-title">آراء العميلات (${centerReviews.length})</p>
+    ${centerReviews.slice(0,15).map(r=>{
+      const ex = experts.find(x=>x.id===r.expertId);
+      return `<div class="review-card">
+        <div class="review-top">
+          <span class="review-name">${r.customerName||'عميلة'}</span>
+          <span class="review-stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>
+        </div>
+        ${r.comment ? `<div class="review-comment">${r.comment}</div>` : ''}
+        ${ex ? `<div class="review-target">مع ${ex.name}</div>` : ''}
+      </div>`;
+    }).join('')}
+  `;
 }
 
 /* ---------------- PHOTO VIEWING (center gallery + expert portfolio) ---------------- */
