@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const path = require('path');
 const {
   db, uid, dbReady, j,
@@ -42,6 +43,17 @@ async function getCommissionRate() {
   return Number.isFinite(rate) ? rate : 0.10;
 }
 function round2(n) { return Math.round(n * 100) / 100; }
+
+/* No SMS/email is wired up yet, so a self-service "forgot password" flow
+   isn't possible — instead, whoever already manages an account (admin for
+   centers/customers, a center for its own experts) can reset it here and
+   relay the new password to them directly (phone call, WhatsApp, etc). */
+const TEMP_PASSWORD_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; // no 0/O/1/l/I
+function genTempPassword() {
+  let out = '';
+  for (let i = 0; i < 8; i++) out += TEMP_PASSWORD_CHARS[crypto.randomInt(TEMP_PASSWORD_CHARS.length)];
+  return out;
+}
 
 async function recomputeCenterRating(centerId) {
   const rows = await reviewsStmt.byCenter.all(centerId);
@@ -357,6 +369,14 @@ app.delete('/api/experts/:id', requireAuth('center'), ar(async (req, res) => {
   res.json({ ok: true });
 }));
 
+app.post('/api/experts/:id/reset-password', requireAuth('center'), ar(async (req, res) => {
+  const ex = await getExpert(req.params.id);
+  if (!ex || ex.centerId !== req.auth.centerId) return res.status(404).json({ error: 'not_found' });
+  const password = genTempPassword();
+  await expertsStmt.updatePassword.run(bcrypt.hashSync(password, 10), ex.id);
+  res.json({ password });
+}));
+
 app.post('/api/packages', requireAuth('center'), ar(async (req, res) => {
   const b = req.body || {};
   if (!b.name) return res.status(400).json({ error: 'missing_fields' });
@@ -451,6 +471,22 @@ app.delete('/api/centers/:id', requireAuth('admin'), ar(async (req, res) => {
   if (!c) return res.status(404).json({ error: 'not_found' });
   await centersStmt.delete.run(c.id);
   res.json({ ok: true });
+}));
+
+app.post('/api/centers/:id/reset-password', requireAuth('admin'), ar(async (req, res) => {
+  const c = await getCenter(req.params.id);
+  if (!c) return res.status(404).json({ error: 'not_found' });
+  const password = genTempPassword();
+  await centersStmt.updatePassword.run(bcrypt.hashSync(password, 10), c.id);
+  res.json({ password });
+}));
+
+app.post('/api/customers/:id/reset-password', requireAuth('admin'), ar(async (req, res) => {
+  const cust = await customersStmt.byId.get(req.params.id);
+  if (!cust) return res.status(404).json({ error: 'not_found' });
+  const password = genTempPassword();
+  await customersStmt.updatePassword.run(bcrypt.hashSync(password, 10), cust.id);
+  res.json({ password });
 }));
 
 /* ================= static apps ================= */

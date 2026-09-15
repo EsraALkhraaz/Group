@@ -194,6 +194,7 @@ const centersStmt = {
     )
   },
   updateStatus: { run: (status, id) => pool.query('UPDATE centers SET status=$1 WHERE id=$2', [status, id]) },
+  updatePassword: { run: (passwordHash, id) => pool.query('UPDATE centers SET password_hash=$1 WHERE id=$2', [passwordHash, id]) },
   delete: { run: (id) => pool.query('DELETE FROM centers WHERE id=$1', [id]) },
   updateRating: { run: (rating, id) => pool.query('UPDATE centers SET rating=$1 WHERE id=$2', [rating, id]) },
   incrementViews: { run: (id) => pool.query('UPDATE centers SET views = views + 1 WHERE id=$1', [id]) }
@@ -212,7 +213,8 @@ const expertsStmt = {
     )
   },
   delete: { run: (id) => pool.query('DELETE FROM experts WHERE id=$1', [id]) },
-  updateRating: { run: (rating, id) => pool.query('UPDATE experts SET rating=$1 WHERE id=$2', [rating, id]) }
+  updateRating: { run: (rating, id) => pool.query('UPDATE experts SET rating=$1 WHERE id=$2', [rating, id]) },
+  updatePassword: { run: (passwordHash, id) => pool.query('UPDATE experts SET password_hash=$1 WHERE id=$2', [passwordHash, id]) }
 };
 
 const customersStmt = {
@@ -224,7 +226,8 @@ const customersStmt = {
       'INSERT INTO customers (id,name,phone,password_hash,favorites,"favoriteExperts") VALUES ($1,$2,$3,$4,$5,$6)',
       [c.id, c.name, c.phone, c.password_hash, j(c.favorites), j(c.favoriteExperts)]
     )
-  }
+  },
+  updatePassword: { run: (passwordHash, id) => pool.query('UPDATE customers SET password_hash=$1 WHERE id=$2', [passwordHash, id]) }
 };
 
 const packagesStmt = {

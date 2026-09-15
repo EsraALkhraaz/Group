@@ -347,6 +347,7 @@ function renderDashboard(){
               <div class="t2">${DEPARTMENTS[e.department].ar} · ${e.specialty} · ⭐ ${e.rating.toFixed(1)}</div>
             </div>
             <div class="mini-switch ${e.available?'on':''}" data-avail="${e.id}"></div>
+            <button class="icon-btn" data-reset-expert-pw="${e.id}">🔑 كلمة مرور</button>
             <button class="icon-btn" data-remove-expert="${e.id}">حذف</button>
           </div>
         `).join('') || '<div class="empty-state">لا يوجد فريق بعد</div>'}
@@ -470,6 +471,17 @@ function renderDashboard(){
         renderDashboard();
         toast('تم حذف العضوة من الفريق');
       }catch(e){ toast('تعذر الحذف'); }
+    });
+  });
+  document.querySelectorAll('[data-reset-expert-pw]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const ex = experts.find(e=>e.id===btn.dataset.resetExpertPw);
+      if(!ex) return;
+      if(!confirm(`إعادة تعيين كلمة مرور "${ex.name}"؟ كلمة مرورها الحالية ستتوقف عن العمل فوراً.`)) return;
+      try{
+        const { password } = await api.post('/api/experts/'+ex.id+'/reset-password', {}, {auth:'center'});
+        prompt('كلمة المرور الجديدة لـ "'+ex.name+'" — انسخيها وأرسليها لها (لن تظهر مرة أخرى):', password);
+      }catch(e){ toast('تعذر إعادة تعيين كلمة المرور'); }
     });
   });
   document.querySelectorAll('[data-remove-package]').forEach(btn=>{

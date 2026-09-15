@@ -56,6 +56,7 @@ main{padding:16px 16px 30px;}
 .act-approve{background:var(--ok);color:#fff;}
 .act-reject{background:var(--danger);color:#fff;}
 .act-toggle{background:var(--line);color:var(--maroon-dark);}
+.act-neutral{background:var(--line);color:var(--maroon-dark);}
 
 .empty-state{text-align:center;padding:26px 10px;color:var(--muted);font-size:13px;}
 
@@ -318,7 +319,7 @@ function centerCardHtml(c){
         </div>
         <span class="badge ${badgeClass}">${badgeLabel}</span>
       </div>
-      <div class="actions">${actions}</div>
+      <div class="actions">${actions}<button class="act-btn act-neutral" data-reset-pw="${c.id}">🔑 إعادة تعيين كلمة المرور</button></div>
     </div>`;
 }
 function bindCenterActions(wrap){
@@ -350,6 +351,14 @@ function bindCenterActions(wrap){
       c.status='approved'; toast('تم إعادة تفعيل المركز'); showTab(activeTab);
     }catch(e){ toast('تعذر تنفيذ الإجراء'); }
   }));
+  wrap.querySelectorAll('[data-reset-pw]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const c = centers.find(x=>x.id===btn.dataset.resetPw);
+    if(!confirm(`إعادة تعيين كلمة مرور "${c.name}"؟ كلمة مرورها الحالية ستتوقف عن العمل فوراً.`)) return;
+    try{
+      const { password } = await api.post('/api/centers/'+c.id+'/reset-password', {}, {auth:'admin'});
+      prompt('كلمة المرور الجديدة لـ "'+c.name+'" — انسخيها وأرسليها لصاحبة المركز (لن تظهر مرة أخرى):', password);
+    }catch(e){ toast('تعذر إعادة تعيين كلمة المرور'); }
+  }));
 }
 function renderCentersList(){
   const wrap = document.getElementById('centersList');
@@ -365,10 +374,23 @@ function renderUsers(){
   wrap.innerHTML = customers.map(u=>{
     const count = bookings.filter(b=>b.customerId===u.id).length;
     return `<div class="card">
-      <div class="t1">${u.name}</div>
-      <div class="t2">${u.phone} &nbsp;·&nbsp; ${count} حجز &nbsp;·&nbsp; ${(u.favorites||[]).length} مفضّلة</div>
+      <div class="top">
+        <div>
+          <div class="t1">${u.name}</div>
+          <div class="t2">${u.phone} &nbsp;·&nbsp; ${count} حجز &nbsp;·&nbsp; ${(u.favorites||[]).length} مفضّلة</div>
+        </div>
+      </div>
+      <div class="actions"><button class="act-btn act-neutral" data-reset-pw="${u.id}">🔑 إعادة تعيين كلمة المرور</button></div>
     </div>`;
   }).join('');
+  wrap.querySelectorAll('[data-reset-pw]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const u = customers.find(x=>x.id===btn.dataset.resetPw);
+    if(!confirm(`إعادة تعيين كلمة مرور "${u.name}"؟ كلمة مرورها الحالية ستتوقف عن العمل فوراً.`)) return;
+    try{
+      const { password } = await api.post('/api/customers/'+u.id+'/reset-password', {}, {auth:'admin'});
+      prompt('كلمة المرور الجديدة لـ "'+u.name+'" — انسخيها وأرسليها للعميلة (لن تظهر مرة أخرى):', password);
+    }catch(e){ toast('تعذر إعادة تعيين كلمة المرور'); }
+  }));
 }
 
 /* ---------------- BOOKINGS ---------------- */
