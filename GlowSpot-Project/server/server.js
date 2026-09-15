@@ -168,11 +168,30 @@ app.patch('/api/customers/me', requireAuth('customer'), ar(async (req, res) => {
   const current = await customersStmt.byId.get(req.auth.id);
   if (!current) return res.status(404).json({ error: 'not_found' });
   const body = req.body || {};
-  const name = body.name !== undefined ? String(body.name) : current.name;
-  const phone = body.phone !== undefined ? String(body.phone) : current.phone;
+
+  if (body.newPassword !== undefined) {
+    if (!bcrypt.compareSync(body.currentPassword || '', current.password_hash)) {
+      return res.status(401).json({ error: 'wrong_current_password' });
+    }
+    if (!body.newPassword || String(body.newPassword).length < 4) {
+      return res.status(400).json({ error: 'weak_password' });
+    }
+    await customersStmt.updatePassword.run(bcrypt.hashSync(body.newPassword, 10), current.id);
+  }
+
+  const name = body.name !== undefined ? String(body.name).trim() : current.name;
+  const phone = body.phone !== undefined ? String(body.phone).trim() : current.phone;
+  const address = body.address !== undefined ? String(body.address).trim() : current.address;
   const favorites = body.favorites !== undefined ? body.favorites : current.favorites;
   const favoriteExperts = body.favoriteExperts !== undefined ? body.favoriteExperts : current.favoriteExperts;
-  await db.query('UPDATE customers SET name=$1, phone=$2, favorites=$3, "favoriteExperts"=$4 WHERE id=$5', [name, phone, j(favorites), j(favoriteExperts), current.id]);
+  if (phone !== current.phone) {
+    const clash = await customersStmt.byPhone.get(phone);
+    if (clash && clash.id !== current.id) return res.status(409).json({ error: 'phone_taken' });
+  }
+  await db.query(
+    'UPDATE customers SET name=$1, phone=$2, favorites=$3, "favoriteExperts"=$4, address=$5 WHERE id=$6',
+    [name, phone, j(favorites), j(favoriteExperts), address, current.id]
+  );
   res.json(customerPublic(await customersStmt.byId.get(current.id)));
 }));
 

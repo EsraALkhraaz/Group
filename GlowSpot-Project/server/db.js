@@ -59,7 +59,8 @@ async function initSchema() {
       phone TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       favorites JSONB DEFAULT '[]',
-      "favoriteExperts" JSONB DEFAULT '[]'
+      "favoriteExperts" JSONB DEFAULT '[]',
+      address TEXT
     );
 
     CREATE TABLE IF NOT EXISTS packages (
@@ -136,6 +137,10 @@ async function initSchema() {
   // both tables already existed live.
   await pool.query(`ALTER TABLE centers ADD COLUMN IF NOT EXISTS gallery JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE experts ADD COLUMN IF NOT EXISTS portfolio JSONB DEFAULT '{}'`);
+
+  // Saved home address — lets the booking sheet pre-fill the home-service
+  // address field instead of the customer retyping it every time.
+  await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT`);
 }
 
 function uid(prefix) {

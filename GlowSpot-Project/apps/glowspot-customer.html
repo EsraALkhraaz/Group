@@ -354,7 +354,25 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-col
           <div class="profile-name" id="profileName"></div>
           <div class="profile-phone" id="profilePhone"></div>
         </div>
-        <button class="logout-btn" id="logoutBtn">تسجيل الخروج</button>
+
+        <p class="section-title">بياناتي</p>
+        <label>الاسم الكامل</label>
+        <input id="accName" placeholder="اسمك الكامل (الاسم واسم العائلة)">
+        <label>رقم الهاتف</label>
+        <input id="accPhone" type="tel">
+        <label>عنوان منزلك</label>
+        <input id="accAddress" placeholder="المدينة، المنطقة، أقرب معلم">
+        <p style="font-size:11px;color:var(--muted);margin:4px 2px 0;">يُستخدم لتعبئة عنوانك تلقائياً عند حجز خدمة منزلية</p>
+        <button class="confirm-btn" id="saveProfileBtn">حفظ التعديلات</button>
+
+        <p class="section-title" style="margin-top:22px;">تغيير كلمة المرور</p>
+        <label>كلمة المرور الحالية</label>
+        <input id="accCurrentPassword" type="password">
+        <label>كلمة المرور الجديدة</label>
+        <input id="accNewPassword" type="password">
+        <button class="confirm-btn" id="changePasswordBtn">تغيير كلمة المرور</button>
+
+        <button class="logout-btn" id="logoutBtn" style="margin-top:20px;">تسجيل الخروج</button>
       </main>
     </section>
 
@@ -905,7 +923,7 @@ function openBooking({centerId, mode, expertId, pkg, department, deptLocked}){
   const cust = currentCustomer();
   bk = {centerId, mode, department:department||null, service:null, expertId:null, date:null, time:null,
         custName: cust ? cust.name : '', custPhone: cust ? cust.phone : '', pkg:pkg||null, deptLocked:!!deptLocked,
-        serviceLocation:'center', homeAddress:''};
+        serviceLocation:'center', homeAddress: cust ? (cust.address||'') : ''};
   if(mode==='expert'){
     const ex = experts.find(x=>x.id===expertId);
     bk.department = ex.department;
@@ -1303,7 +1321,37 @@ function renderProfile(){
   document.getElementById('profileAvatar').textContent = initial(cust.name);
   document.getElementById('profileName').textContent = cust.name;
   document.getElementById('profilePhone').textContent = cust.phone;
+  document.getElementById('accName').value = cust.name || '';
+  document.getElementById('accPhone').value = cust.phone || '';
+  document.getElementById('accAddress').value = cust.address || '';
 }
+document.getElementById('saveProfileBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('accName').value.trim();
+  const phone = document.getElementById('accPhone').value.trim();
+  const address = document.getElementById('accAddress').value.trim();
+  if(!name || !phone){ toast('يرجى إدخال الاسم ورقم الهاتف'); return; }
+  try{
+    const updated = await api.patch('/api/customers/me', {name, phone, address}, {auth:'customer'});
+    Object.assign(currentCustomer(), updated);
+    renderProfile();
+    toast('تم حفظ بياناتك');
+  }catch(e){
+    toast(e.error==='phone_taken' ? 'رقم الهاتف هذا مستخدم من قبل' : 'تعذر حفظ البيانات');
+  }
+});
+document.getElementById('changePasswordBtn').addEventListener('click', async ()=>{
+  const currentPassword = document.getElementById('accCurrentPassword').value;
+  const newPassword = document.getElementById('accNewPassword').value;
+  if(!currentPassword || !newPassword){ toast('يرجى إدخال كلمة المرور الحالية والجديدة'); return; }
+  try{
+    await api.patch('/api/customers/me', {currentPassword, newPassword}, {auth:'customer'});
+    document.getElementById('accCurrentPassword').value = '';
+    document.getElementById('accNewPassword').value = '';
+    toast('تم تغيير كلمة المرور بنجاح');
+  }catch(e){
+    toast(e.error==='wrong_current_password' ? 'كلمة المرور الحالية غير صحيحة' : e.error==='weak_password' ? 'كلمة المرور الجديدة قصيرة جداً' : 'تعذر تغيير كلمة المرور');
+  }
+});
 
 /* ---------------- NAV ---------------- */
 function showView(name){
