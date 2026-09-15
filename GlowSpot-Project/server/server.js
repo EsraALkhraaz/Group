@@ -10,7 +10,6 @@ const {
 } = require('./db');
 const { signToken, requireAuth } = require('./auth');
 const migrateToNeon = require('./migrate-to-neon');
-const { sendEmail } = require('./email');
 
 const ADMIN_PASSWORD = process.env.GLOWSPOT_ADMIN_PASSWORD || 'glowspot2026';
 const PORT = process.env.PORT || 3000;
@@ -44,14 +43,6 @@ async function getCommissionRate() {
   return Number.isFinite(rate) ? rate : 0.10;
 }
 function round2(n) { return Math.round(n * 100) / 100; }
-
-function emailWrap(title, lines) {
-  return `<div style="font-family:sans-serif;direction:rtl;text-align:right;max-width:480px;margin:0 auto;">
-    <h2 style="color:#8B4B56;">${title}</h2>
-    ${lines.map((l) => `<p style="margin:6px 0;">${l}</p>`).join('')}
-    <p style="color:#8F8888;font-size:12px;margin-top:20px;">GlowSpot</p>
-  </div>`;
-}
 
 /* No SMS/email is wired up yet, so a self-service "forgot password" flow
    isn't possible — instead, whoever already manages an account (admin for
@@ -191,7 +182,6 @@ app.patch('/api/customers/me', requireAuth('customer'), ar(async (req, res) => {
   const name = body.name !== undefined ? String(body.name).trim() : current.name;
   const phone = body.phone !== undefined ? String(body.phone).trim() : current.phone;
   const address = body.address !== undefined ? String(body.address).trim() : current.address;
-  const email = body.email !== undefined ? String(body.email).trim() : current.email;
   const favorites = body.favorites !== undefined ? body.favorites : current.favorites;
   const favoriteExperts = body.favoriteExperts !== undefined ? body.favoriteExperts : current.favoriteExperts;
   if (phone !== current.phone) {
@@ -199,8 +189,8 @@ app.patch('/api/customers/me', requireAuth('customer'), ar(async (req, res) => {
     if (clash && clash.id !== current.id) return res.status(409).json({ error: 'phone_taken' });
   }
   await db.query(
-    'UPDATE customers SET name=$1, phone=$2, favorites=$3, "favoriteExperts"=$4, address=$5, email=$6 WHERE id=$7',
-    [name, phone, j(favorites), j(favoriteExperts), address, email, current.id]
+    'UPDATE customers SET name=$1, phone=$2, favorites=$3, "favoriteExperts"=$4, address=$5 WHERE id=$6',
+    [name, phone, j(favorites), j(favoriteExperts), address, current.id]
   );
   res.json(customerPublic(await customersStmt.byId.get(current.id)));
 }));
@@ -279,26 +269,6 @@ app.post('/api/bookings', requireAuth('customer'), ar(async (req, res) => {
   };
   await bookingsStmt.insert.run(row);
   res.json(bookingPublic(await bookingsStmt.byId.get(row.id)));
-
-  if (row.expertId) {
-    const ex = await getExpert(row.expertId);
-    if (ex && ex.email) {
-      sendEmail(ex.email, 'طلب حجز جديد على GlowSpot', emailWrap('طلب حجز جديد', [
-        `لديك طلب حجز جديد من <strong>${row.customerName}</strong>.`,
-        `الخدمة: ${row.service} — ${row.date} الساعة ${row.time}`,
-        `افتحي تطبيق الفريق للموافقة أو الرفض.`
-      ]));
-    }
-  }
-  if (row.status === 'confirmed') {
-    const cust = await customersStmt.byId.get(row.customerId);
-    if (cust && cust.email) {
-      sendEmail(cust.email, 'تم تأكيد حجزك في GlowSpot', emailWrap('تم تأكيد حجزك ✅', [
-        `حجزك في <strong>${row.centerName}</strong> تأكّد.`,
-        `${row.service} — ${row.date} الساعة ${row.time}`
-      ]));
-    }
-  }
 }));
 
 app.post('/api/reviews', requireAuth('customer'), ar(async (req, res) => {
@@ -358,28 +328,9 @@ app.patch('/api/bookings/:id', requireAuth('customer', 'expert', 'center'), ar(a
     }
     if (status === 'declined') {
       if (!declineReason) return res.status(400).json({ error: 'decline_reason_required' });
-      await setStatus('declined', { declineReason, alternatives: j(alternatives || []) });
-      const decCust = await customersStmt.byId.get(booking.customerId);
-      if (decCust && decCust.email) {
-        sendEmail(decCust.email, 'بخصوص حجزك في GlowSpot', emailWrap('تعذر تأكيد حجزك', [
-          `للأسف حجزك في <strong>${booking.centerName}</strong> لم يُقبل.`,
-          `السبب: ${declineReason}`,
-          `${booking.service} — ${booking.date} الساعة ${booking.time}`
-        ]));
-      }
-      return;
+      return setStatus('declined', { declineReason, alternatives: j(alternatives || []) });
     }
-    await setStatus(status);
-    if (status === 'confirmed') {
-      const confCust = await customersStmt.byId.get(booking.customerId);
-      if (confCust && confCust.email) {
-        sendEmail(confCust.email, 'تم تأكيد حجزك في GlowSpot', emailWrap('تم تأكيد حجزك ✅', [
-          `حجزك في <strong>${booking.centerName}</strong> تأكّد من قبل الخبيرة.`,
-          `${booking.service} — ${booking.date} الساعة ${booking.time}`
-        ]));
-      }
-    }
-    return;
+    return setStatus(status);
   }
 
   if (role === 'center') {
@@ -504,12 +455,11 @@ app.patch('/api/experts/:id', requireAuth('expert', 'center'), ar(async (req, re
     workingHours: b.workingHours !== undefined ? b.workingHours : current.workingHours,
     leaveRequests: b.leaveRequests !== undefined ? b.leaveRequests : current.leaveRequests,
     clientNotes: b.clientNotes !== undefined ? b.clientNotes : current.clientNotes,
-    portfolio: b.portfolio !== undefined ? b.portfolio : current.portfolio,
-    email: b.email !== undefined ? String(b.email).trim() : current.email
+    portfolio: b.portfolio !== undefined ? b.portfolio : current.portfolio
   };
   await db.query(
-    'UPDATE experts SET available=$1, "homeService"=$2, "servicePrices"=$3, "serviceDurations"=$4, "workingHours"=$5, "leaveRequests"=$6, "clientNotes"=$7, portfolio=$8, email=$9 WHERE id=$10',
-    [merged.available, merged.homeService, j(merged.servicePrices), j(merged.serviceDurations), j(merged.workingHours), j(merged.leaveRequests), j(merged.clientNotes), j(merged.portfolio), merged.email, current.id]
+    'UPDATE experts SET available=$1, "homeService"=$2, "servicePrices"=$3, "serviceDurations"=$4, "workingHours"=$5, "leaveRequests"=$6, "clientNotes"=$7, portfolio=$8 WHERE id=$9',
+    [merged.available, merged.homeService, j(merged.servicePrices), j(merged.serviceDurations), j(merged.workingHours), j(merged.leaveRequests), j(merged.clientNotes), j(merged.portfolio), current.id]
   );
   res.json(expertPublic(await getExpert(current.id)));
 }));

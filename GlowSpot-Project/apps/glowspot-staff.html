@@ -165,14 +165,7 @@ input,textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padd
       </section>
 
       <section id="viewAvailability">
-        <p class="section-title">البريد الإلكتروني</p>
-        <div class="card">
-          <div class="t2" style="margin-bottom:8px;">لتصلك رسالة عند وصول طلب حجز جديد (اختياري)</div>
-          <input id="staffEmail" type="email" placeholder="بريدك الإلكتروني">
-          <button class="confirm-btn" id="saveEmailBtn" style="margin-top:8px;">حفظ</button>
-        </div>
-
-        <p class="section-title" style="margin-top:24px;">الخدمة المنزلية</p>
+        <p class="section-title">الخدمة المنزلية</p>
         <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
           <div>
             <div class="t1">تقديم الخدمة في منزل العميلة</div>
@@ -608,16 +601,6 @@ function renderServices(){
 /* ---------------- AVAILABILITY ---------------- */
 function renderAvailability(){
   const ex = me(); if(!ex) return;
-
-  document.getElementById('staffEmail').value = ex.email || '';
-  document.getElementById('saveEmailBtn').onclick = async ()=>{
-    const email = document.getElementById('staffEmail').value.trim();
-    try{
-      await api.patch('/api/experts/'+ex.id, {email}, {auth:'expert'});
-      ex.email = email;
-      toast('تم حفظ البريد الإلكتروني');
-    }catch(e){ toast('تعذر الحفظ'); }
-  };
 
   const homeChip = document.getElementById('homeServiceToggle');
   homeChip.classList.toggle('active', !!ex.homeService);
