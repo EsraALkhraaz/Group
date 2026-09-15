@@ -8,6 +8,7 @@ const {
   centerPublic, expertPublic, customerPublic, bookingPublic, bookingBusyView
 } = require('./db');
 const { signToken, requireAuth } = require('./auth');
+const migrateToNeon = require('./migrate-to-neon');
 
 const ADMIN_PASSWORD = process.env.GLOWSPOT_ADMIN_PASSWORD || 'glowspot2026';
 const PORT = process.env.PORT || 3000;
@@ -463,6 +464,7 @@ app.use((err, req, res, next) => {
 });
 
 dbReady
+  .then(() => migrateToNeon().catch((err) => console.error('[migrate-to-neon] failed:', err.message)))
   .then(() => {
     app.listen(PORT, () => {
       console.log(`GlowSpot server running on http://localhost:${PORT}`);
