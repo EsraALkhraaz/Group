@@ -10,17 +10,19 @@ self.addEventListener('push', (event) => {
       body: data.body || '',
       icon: '/icon-512.png',
       badge: '/icon-512.png',
-      dir: 'rtl'
+      dir: 'rtl',
+      data: { url: data.url || '/' }
     })
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const c of list) { if ('focus' in c) return c.focus(); }
-      if (clients.openWindow) return clients.openWindow('/');
+      for (const c of list) { if ('focus' in c) { c.navigate(targetUrl); return c.focus(); } }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
     })
   );
 });

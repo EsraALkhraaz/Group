@@ -559,6 +559,37 @@ function enterApp(){
   checkUpcomingReminder();
   checkStatusChanges(bookings);
   startPolling();
+  handleDeepLink();
+}
+
+/* Lands the customer straight in a booking sheet for a specific expert when
+   she taps a push notification: "?rebook=<expertId>" from the 3-4-week
+   rebooking reminder (prefills her last service with that expert), or
+   "?quickbook=<expertId>&date=&time=&service=" from the freed-slot waitlist
+   alert (prefills the exact slot that just opened up). */
+function handleDeepLink(){
+  const params = new URLSearchParams(location.search);
+  const rebookExpertId = params.get('rebook');
+  const quickbookExpertId = params.get('quickbook');
+  const expertId = rebookExpertId || quickbookExpertId;
+  if(!expertId) return;
+  history.replaceState(null, '', location.pathname);
+
+  const ex = experts.find(x=>x.id===expertId);
+  if(!ex) return;
+  openBooking({centerId: ex.centerId, mode:'expert', expertId: ex.id});
+
+  if(rebookExpertId){
+    const last = myBookings().filter(b=>b.expertId===expertId && b.status==='completed')
+      .sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time))[0];
+    if(last && DEPARTMENTS[ex.department].services.includes(last.service)) bk.service = last.service;
+  } else {
+    const service = params.get('service');
+    if(service && DEPARTMENTS[ex.department].services.includes(service)) bk.service = service;
+    if(params.get('date')) bk.date = params.get('date');
+    if(params.get('time')) bk.time = params.get('time');
+  }
+  renderSheet();
 }
 
 /* ---------------- EXPLORE ---------------- */
@@ -1302,10 +1333,17 @@ function renderAppointments(){
   });
 }
 
+const REVIEW_CRITERIA = [
+  {key:'expertRating', label:'تقييم الخبيرة'},
+  {key:'qualityRating', label:'جودة الخدمة'},
+  {key:'punctualityRating', label:'الالتزام بالموعد'},
+  {key:'treatmentRating', label:'التعامل'},
+  {key:'resultRating', label:'النتيجة'}
+];
 function openReviewSheet(bookingId){
   const b = bookings.find(x=>x.id===bookingId);
   if(!b) return;
-  reviewCtx = {bookingId, rating:5, comment:''};
+  reviewCtx = {bookingId, expertRating:5, qualityRating:5, punctualityRating:5, treatmentRating:5, resultRating:5, comment:''};
   document.getElementById('bookOverlay').classList.add('visible');
   renderReviewSheet(b);
 }
@@ -1314,23 +1352,32 @@ function renderReviewSheet(b){
   content.innerHTML = `
     <h3>قيّمي تجربتك</h3>
     <p class="sub">${b.centerName} · ${b.service}${b.expertName?' · '+b.expertName:''}</p>
-    <p class="step-label">التقييم</p>
-    <div id="starPicker" style="font-size:30px;letter-spacing:8px;">
-      ${[1,2,3,4,5].map(n=>`<span data-n="${n}" style="cursor:pointer;color:${n<=reviewCtx.rating?'var(--gold)':'var(--line)'}">★</span>`).join('')}
-    </div>
+    ${REVIEW_CRITERIA.map(c=>`
+      <p class="step-label">${c.label}</p>
+      <div class="star-picker" data-criterion="${c.key}" style="font-size:24px;letter-spacing:6px;">
+        ${[1,2,3,4,5].map(n=>`<span data-n="${n}" style="cursor:pointer;color:${n<=reviewCtx[c.key]?'var(--gold)':'var(--line)'}">★</span>`).join('')}
+      </div>
+    `).join('')}
     <label>تعليقك (اختياري)</label>
     <textarea id="reviewComment" rows="3" placeholder="شاركي تجربتك مع هذه الخبيرة...">${reviewCtx.comment}</textarea>
     <button class="confirm-btn" id="submitReviewBtn">إرسال التقييم</button>
   `;
-  content.querySelectorAll('#starPicker span').forEach(s=>{
-    s.addEventListener('click', ()=>{ reviewCtx.rating = parseInt(s.dataset.n); renderReviewSheet(b); });
+  content.querySelectorAll('.star-picker').forEach(picker=>{
+    const key = picker.dataset.criterion;
+    picker.querySelectorAll('span').forEach(s=>{
+      s.addEventListener('click', ()=>{ reviewCtx[key] = parseInt(s.dataset.n); renderReviewSheet(b); });
+    });
   });
   document.getElementById('reviewComment').addEventListener('input', e=>{ reviewCtx.comment = e.target.value; });
   document.getElementById('submitReviewBtn').addEventListener('click', ()=> submitReview(b));
 }
 async function submitReview(b){
   try{
-    const review = await api.post('/api/reviews', {bookingId:b.id, rating:reviewCtx.rating, comment:reviewCtx.comment.trim()}, {auth:'customer'});
+    const review = await api.post('/api/reviews', {
+      bookingId:b.id, comment:reviewCtx.comment.trim(),
+      expertRating:reviewCtx.expertRating, qualityRating:reviewCtx.qualityRating,
+      punctualityRating:reviewCtx.punctualityRating, treatmentRating:reviewCtx.treatmentRating, resultRating:reviewCtx.resultRating
+    }, {auth:'customer'});
     reviews.push(review);
     document.getElementById('bookOverlay').classList.remove('visible');
     toast('شكراً على تقييمك! ⭐');

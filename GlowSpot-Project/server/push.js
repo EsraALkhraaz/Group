@@ -17,10 +17,12 @@ if (enabled) {
 /* Sends to every subscription on the row (one per device/browser) and
    drops any subscription the push service reports as gone (404/410) so
    the list doesn't grow stale. `stmt` is the caller's updatePushSubscriptions
-   statement (customersStmt or expertsStmt) so this can self-clean. */
-async function sendPushToRow(row, stmt, title, body) {
+   statement (customersStmt or expertsStmt) so this can self-clean. `url`
+   (optional) is where tapping the notification should land — the service
+   worker opens/focuses it instead of the app root. */
+async function sendPushToRow(row, stmt, title, body, url) {
   if (!enabled || !row || !Array.isArray(row.pushSubscriptions) || row.pushSubscriptions.length === 0) return;
-  const payload = JSON.stringify({ title, body });
+  const payload = JSON.stringify(url ? { title, body, url } : { title, body });
   const survivors = [];
   let changed = false;
   for (const sub of row.pushSubscriptions) {

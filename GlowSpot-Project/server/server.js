@@ -78,6 +78,32 @@ async function recomputeExpertRating(expertId) {
   await expertsStmt.updateRating.run(avg, expertId);
 }
 
+/* A cancelled slot is a lost sale unless someone rebooks it fast — so instead
+   of just freeing the calendar, tell the expert's repeat/favoriting
+   customers it just opened up. "Nearby" here means "already interested in
+   this expert" (favorited her or booked her before), since the app has no
+   geolocation data to go on. */
+async function notifyWaitlistOfOpenSlot(booking) {
+  if (!booking.expertId) return;
+  const [favRows, priorRows] = await Promise.all([
+    customersStmt.byFavoriteExpert.all(booking.expertId),
+    bookingsStmt.priorCustomerIdsOfExpert.all(booking.expertId)
+  ]);
+  const ids = new Set([...favRows.map((c) => c.id), ...priorRows.map((r) => r.customerId)]);
+  ids.delete(booking.customerId);
+  if (!ids.size) return;
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const dateLabel = booking.date === todayIso ? 'اليوم' : booking.date.split('-').reverse().slice(0, 2).join('/');
+  const url = `/glowspot-customer.html?quickbook=${encodeURIComponent(booking.expertId)}&date=${encodeURIComponent(booking.date)}&time=${encodeURIComponent(booking.time)}&service=${encodeURIComponent(booking.service || '')}`;
+
+  const candidates = [...ids].slice(0, 30);
+  for (const cid of candidates) {
+    const cust = await customersStmt.byId.get(cid);
+    if (cust) push.sendPushToRow(cust, customersStmt, `✨ موعد شاغر الآن مع ${booking.expertName}`, `${dateLabel} — ${booking.time}`, url);
+  }
+}
+
 /* ================= public reads ================= */
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
@@ -305,17 +331,26 @@ app.post('/api/bookings', requireAuth('customer'), ar(async (req, res) => {
 }));
 
 app.post('/api/reviews', requireAuth('customer'), ar(async (req, res) => {
-  const { bookingId, rating, comment } = req.body || {};
+  const { bookingId, expertRating, qualityRating, punctualityRating, treatmentRating, resultRating, comment } = req.body || {};
   const booking = bookingId && await bookingsStmt.byId.get(bookingId);
   if (!booking || booking.customerId !== req.auth.id) return res.status(404).json({ error: 'booking_not_found' });
   if (booking.status !== 'completed') return res.status(400).json({ error: 'booking_not_completed' });
   if ((await reviewsStmt.byBooking.all(bookingId)).length) return res.status(409).json({ error: 'already_reviewed' });
-  const n = parseInt(rating, 10);
-  if (!(n >= 1 && n <= 5)) return res.status(400).json({ error: 'invalid_rating' });
+
+  const criteria = { expertRating, qualityRating, punctualityRating, treatmentRating, resultRating };
+  const parsed = {};
+  for (const key of Object.keys(criteria)) {
+    const n = parseInt(criteria[key], 10);
+    if (!(n >= 1 && n <= 5)) return res.status(400).json({ error: 'invalid_rating' });
+    parsed[key] = n;
+  }
+  const overall = Math.round((parsed.expertRating + parsed.qualityRating + parsed.punctualityRating + parsed.treatmentRating + parsed.resultRating) / 5);
 
   const row = {
     id: uid('r'), bookingId, centerId: booking.centerId, expertId: booking.expertId,
-    customerId: req.auth.id, customerName: booking.customerName, rating: n,
+    customerId: req.auth.id, customerName: booking.customerName, rating: overall,
+    expertRating: parsed.expertRating, qualityRating: parsed.qualityRating,
+    punctualityRating: parsed.punctualityRating, treatmentRating: parsed.treatmentRating, resultRating: parsed.resultRating,
     comment: (comment || '').trim(), createdAt: new Date().toISOString()
   };
   await reviewsStmt.insert.run(row);
@@ -346,7 +381,9 @@ app.patch('/api/bookings/:id', requireAuth('customer', 'expert', 'center'), ar(a
     if (status !== 'cancelled' || !['pending', 'confirmed'].includes(booking.status)) {
       return res.status(400).json({ error: 'invalid_transition' });
     }
-    return setStatus('cancelled');
+    await setStatus('cancelled');
+    notifyWaitlistOfOpenSlot(booking);
+    return;
   }
 
   if (role === 'expert') {
@@ -371,13 +408,16 @@ app.patch('/api/bookings/:id', requireAuth('customer', 'expert', 'center'), ar(a
       const confCust = await customersStmt.byId.get(booking.customerId);
       if (confCust) push.sendPushToRow(confCust, customersStmt, 'تم تأكيد حجزك ✅', `${booking.service} — ${booking.centerName} الساعة ${booking.time}`);
     }
+    if (status === 'cancelled') notifyWaitlistOfOpenSlot(booking);
     return;
   }
 
   if (role === 'center') {
     if (booking.centerId !== req.auth.centerId) return res.status(403).json({ error: 'forbidden' });
     if (status !== 'cancelled') return res.status(400).json({ error: 'invalid_transition' });
-    return setStatus('cancelled');
+    await setStatus('cancelled');
+    notifyWaitlistOfOpenSlot(booking);
+    return;
   }
 
   return res.status(403).json({ error: 'forbidden' });
@@ -567,6 +607,34 @@ app.post('/api/customers/:id/reset-password', requireAuth('admin'), ar(async (re
   res.json({ password });
 }));
 
+/* ================= rebooking reminders ================= */
+/* "Time for your next appointment" nudge — a customer who hasn't rebooked
+   with the same expert 3-4 weeks after a completed visit gets a push
+   suggesting she rebook the same service, instead of the app just waiting
+   for her to think of it herself. Runs as a periodic scan rather than a
+   per-booking timer since Render's free tier can sleep between requests
+   anyway, so anything scheduled precisely could be missed; a scan on every
+   wake (plus every few hours while awake) catches up regardless. */
+const REBOOK_REMINDER_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+async function runRebookReminderScan() {
+  let due;
+  try {
+    due = await bookingsStmt.dueForRebookReminder.all();
+  } catch (e) {
+    console.error('[rebook-reminder] scan failed:', e.message);
+    return;
+  }
+  for (const b of due) {
+    const cust = await customersStmt.byId.get(b.customerId);
+    if (cust) {
+      const url = `/glowspot-customer.html?rebook=${encodeURIComponent(b.expertId)}`;
+      push.sendPushToRow(cust, customersStmt, `حان وقت موعدك القادم مع ${b.expertName} 💗`, `آخر خدمة: ${b.service} — هل تريدين حجز نفس الخدمة؟`, url);
+    }
+    await bookingsStmt.markRebookReminderSent.run(b.id);
+  }
+}
+
 /* ================= static apps ================= */
 app.use(express.static(path.join(__dirname, '..', 'apps')));
 
@@ -584,6 +652,10 @@ dbReady
       console.log(`GlowSpot server running on http://localhost:${PORT}`);
       console.log(`Apps served from http://localhost:${PORT}/glowspot-customer.html (and dashboard/staff/admin)`);
     });
+    runRebookReminderScan().catch((e) => console.error('[rebook-reminder] initial scan failed:', e.message));
+    setInterval(() => {
+      runRebookReminderScan().catch((e) => console.error('[rebook-reminder] scan failed:', e.message));
+    }, REBOOK_REMINDER_INTERVAL_MS);
   })
   .catch((err) => {
     console.error('Failed to initialize the database:', err);

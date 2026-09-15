@@ -94,7 +94,8 @@ async function initSchema() {
       "serviceLocation" TEXT DEFAULT 'center',
       "homeAddress" TEXT,
       "declineReason" TEXT,
-      alternatives JSONB DEFAULT '[]'
+      alternatives JSONB DEFAULT '[]',
+      "rebookReminderSentAt" TEXT
     );
 
     CREATE TABLE IF NOT EXISTS reviews (
@@ -105,6 +106,11 @@ async function initSchema() {
       "customerId" TEXT,
       "customerName" TEXT,
       rating INTEGER,
+      "expertRating" INTEGER,
+      "qualityRating" INTEGER,
+      "punctualityRating" INTEGER,
+      "treatmentRating" INTEGER,
+      "resultRating" INTEGER,
       comment TEXT,
       "createdAt" TEXT
     );
@@ -154,6 +160,19 @@ async function initSchema() {
   // polling. Each row can hold multiple subscriptions (one per browser/device).
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS "pushSubscriptions" JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE experts ADD COLUMN IF NOT EXISTS "pushSubscriptions" JSONB DEFAULT '[]'`);
+
+  // Detailed reviews: a single overall star was replaced with five separate
+  // criteria (expert/quality/punctuality/treatment/result); `rating` is now
+  // the derived average, kept so existing center/expert rating math still works.
+  await pool.query(`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS "expertRating" INTEGER`);
+  await pool.query(`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS "qualityRating" INTEGER`);
+  await pool.query(`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS "punctualityRating" INTEGER`);
+  await pool.query(`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS "treatmentRating" INTEGER`);
+  await pool.query(`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS "resultRating" INTEGER`);
+
+  // Rebooking reminders: marks a completed booking once its "time for your
+  // next appointment" push has gone out, so the periodic scan never re-sends it.
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "rebookReminderSentAt" TEXT`);
 }
 
 function uid(prefix) {
@@ -255,7 +274,8 @@ const customersStmt = {
     )
   },
   updatePassword: { run: (passwordHash, id) => pool.query('UPDATE customers SET password_hash=$1 WHERE id=$2', [passwordHash, id]) },
-  updatePushSubscriptions: { run: (subs, id) => pool.query('UPDATE customers SET "pushSubscriptions"=$1 WHERE id=$2', [j(subs), id]) }
+  updatePushSubscriptions: { run: (subs, id) => pool.query('UPDATE customers SET "pushSubscriptions"=$1 WHERE id=$2', [j(subs), id]) },
+  byFavoriteExpert: { all: (expertId) => queryAll('SELECT * FROM customers WHERE "favoriteExperts" @> $1::jsonb', [j([expertId])]) }
 };
 
 const packagesStmt = {
@@ -289,7 +309,33 @@ const bookingsStmt = {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
       [b.id, b.centerId, b.centerName, b.department, b.service, b.expertId, b.expertName, b.customerId, b.customerName, b.phone, b.date, b.time, b.duration, b.price, b.commissionAmount, b.netAmount, b.status, b.serviceLocation, b.homeAddress, b.declineReason, j(b.alternatives)]
     )
-  }
+  },
+  /* Repeat customers of an expert — used to build the waitlist notified when
+     one of her confirmed slots frees up unexpectedly. */
+  priorCustomerIdsOfExpert: {
+    all: (expertId) => queryAll(
+      `SELECT DISTINCT "customerId" FROM bookings WHERE "expertId" = $1 AND status NOT IN ('pending','cancelled','declined')`,
+      [expertId]
+    )
+  },
+  /* Completed appointments 3-4 weeks old with no rebooking reminder sent yet
+     and no later booking already made with the same expert. */
+  dueForRebookReminder: {
+    all: () => queryAll(`
+      SELECT * FROM bookings b
+      WHERE b.status = 'completed'
+        AND b."expertId" IS NOT NULL
+        AND b."rebookReminderSentAt" IS NULL
+        AND b.date::date <= (CURRENT_DATE - INTERVAL '21 days')
+        AND b.date::date >= (CURRENT_DATE - INTERVAL '28 days')
+        AND NOT EXISTS (
+          SELECT 1 FROM bookings b2
+          WHERE b2."customerId" = b."customerId" AND b2."expertId" = b."expertId"
+            AND b2.date::date > b.date::date
+        )
+    `)
+  },
+  markRebookReminderSent: { run: (id) => pool.query('UPDATE bookings SET "rebookReminderSentAt"=$1 WHERE id=$2', [new Date().toISOString(), id]) }
 };
 
 const settingsStmt = {
@@ -307,8 +353,9 @@ const reviewsStmt = {
   byExpert: { all: (expertId) => queryAll('SELECT * FROM reviews WHERE "expertId" = $1', [expertId]) },
   insert: {
     run: (r) => pool.query(
-      'INSERT INTO reviews (id,"bookingId","centerId","expertId","customerId","customerName",rating,comment,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-      [r.id, r.bookingId, r.centerId, r.expertId, r.customerId, r.customerName, r.rating, r.comment, r.createdAt]
+      `INSERT INTO reviews (id,"bookingId","centerId","expertId","customerId","customerName",rating,"expertRating","qualityRating","punctualityRating","treatmentRating","resultRating",comment,"createdAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [r.id, r.bookingId, r.centerId, r.expertId, r.customerId, r.customerName, r.rating, r.expertRating, r.qualityRating, r.punctualityRating, r.treatmentRating, r.resultRating, r.comment, r.createdAt]
     )
   }
 };
