@@ -71,21 +71,27 @@ See the top-level README's "غير منفّذ بعد" section for the rest.
 
 ## Deploying to Render (free tier)
 
-`render.yaml` in this folder is a ready-made [Render Blueprint](https://render.com/docs/blueprint-spec):
-a **free** Postgres database (`glowspot-db`) plus a **free** Node web
-service, wired together automatically (`DATABASE_URL` is populated from the
-database's connection string). `GLOWSPOT_JWT_SECRET` is auto-generated on
-deploy. You still need to set `GLOWSPOT_ADMIN_PASSWORD` yourself in the
-Render dashboard after the first deploy (it's marked `sync: false` so it's
-never committed to git).
+`render.yaml` in this folder is a ready-made [Render Blueprint](https://render.com/docs/blueprint-spec)
+for a free Node web service. The live deployment's `DATABASE_URL` points at
+a [Neon](https://neon.tech) Postgres database instead of Render's own managed
+Postgres — Neon's free tier has no 30-day expiry, unlike Render's. (Render's
+free Postgres offering is still fine for a short testing window; `db.js`
+works against either — the only difference is where `DATABASE_URL` points.)
+`GLOWSPOT_JWT_SECRET` is auto-generated on deploy. You still need to set
+`GLOWSPOT_ADMIN_PASSWORD` yourself in the Render dashboard after the first
+deploy (it's marked `sync: false` so it's never committed to git).
 
-⚠️ **Render's free Postgres expires 30 days after creation** (Render then
-deletes it, unless you upgrade it to a paid instance before then). Fine for
-a testing window, not for anything meant to stay up indefinitely — if this
-needs to outlive 30 days, either upgrade the database at that point or plan
-to re-provision it. The free *web service* itself has no such expiry, but
-it does spin down after 15 minutes idle and takes a few seconds to wake back
-up on the next request.
+The free Render *web service* spins down after 15 minutes idle and takes up
+to a minute to wake back up on the next request; a GitHub Actions workflow
+(`.github/workflows/glowspot-keepalive.yml`) pings it every 10 minutes to
+keep it warm, and the shared API client (`apps/glowspot-api.js`) retries
+through any cold start that slips past that instead of failing the request.
+
+`server/migrate-to-neon.js` is the one-time script used to move data from
+Render's Postgres to Neon without losing anything that had already been
+created live (it copies from `DATABASE_URL` to `NEON_DATABASE_URL` when the
+latter is set, and is idempotent — safe to leave wired into `server.js`'s
+boot sequence indefinitely).
 
 Cheapest way to change the demo credentials for a real test (e.g. new admin
 password, or center/expert passwords) once it's live: use the apps
