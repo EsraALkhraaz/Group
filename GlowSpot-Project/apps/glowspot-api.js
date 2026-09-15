@@ -110,11 +110,57 @@
     });
   }
 
+  /* Real phone-level push notifications (Web Push) — the service worker
+     shows the notification even when this tab isn't open. `authRole` is
+     'customer' or 'expert' (whichever token this app holds). */
+  function urlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - base64String.length % 4) % 4);
+    var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var rawData = atob(base64);
+    var out = new Uint8Array(rawData.length);
+    for (var i = 0; i < rawData.length; i++) out[i] = rawData.charCodeAt(i);
+    return out;
+  }
+  async function enablePush(authRole) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      throw Object.assign(new Error('unsupported'), { error: 'unsupported' });
+    }
+    var permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      throw Object.assign(new Error('permission_denied'), { error: 'permission_denied' });
+    }
+    var reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    var vapid = await request('GET', '/api/push/vapid-public-key', undefined, {});
+    if (!vapid.enabled) throw Object.assign(new Error('push_not_configured'), { error: 'push_not_configured' });
+    var sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapid.publicKey)
+      });
+    }
+    await request('POST', '/api/push/subscribe', { subscription: sub.toJSON() }, { auth: authRole });
+    return true;
+  }
+  async function pushStatus() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return 'unsupported';
+    if (Notification.permission === 'denied') return 'denied';
+    try {
+      var reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) return 'inactive';
+      var sub = await reg.pushManager.getSubscription();
+      return sub ? 'active' : 'inactive';
+    } catch (e) { return 'inactive'; }
+  }
+
   global.GlowSpotAPI = {
     getToken: getToken,
     setToken: setToken,
     clearToken: clearToken,
     compressImage: compressImage,
+    enablePush: enablePush,
+    pushStatus: pushStatus,
     get: function (path, opts) { return request('GET', path, undefined, opts); },
     post: function (path, body, opts) { return request('POST', path, body || {}, opts); },
     patch: function (path, body, opts) { return request('PATCH', path, body || {}, opts); },

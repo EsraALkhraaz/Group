@@ -5,6 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GlowSpot Staff — لوحة الخبيرة</title>
+<link rel="manifest" href="manifest-staff.json">
+<meta name="theme-color" content="#8B4B56">
+<link rel="apple-touch-icon" href="icon-512.png">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&family=Playfair+Display:wght@700;800&display=swap');
 :root{
@@ -165,7 +168,14 @@ input,textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padd
       </section>
 
       <section id="viewAvailability">
-        <p class="section-title">الخدمة المنزلية</p>
+        <p class="section-title">إشعارات الهاتف</p>
+        <div class="card">
+          <div class="t2" id="pushStatusText" style="margin-bottom:8px;">تحقّقي من حالة الإشعارات...</div>
+          <button class="confirm-btn" id="enablePushBtn" style="margin-top:0;">تفعيل إشعارات الهاتف</button>
+          <p style="font-size:11px;color:var(--muted);margin:6px 2px 0;">لأفضل تجربة على الآيفون: أضيفي GlowSpot لشاشتك الرئيسية أولاً (مشاركة ← إضافة إلى الشاشة الرئيسية)، ثم فعّلي الإشعارات من هنا.</p>
+        </div>
+
+        <p class="section-title" style="margin-top:24px;">الخدمة المنزلية</p>
         <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
           <div>
             <div class="t1">تقديم الخدمة في منزل العميلة</div>
@@ -298,6 +308,29 @@ function startPolling(){
   }, 30000);
 }
 function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+
+/* ---------------- PHONE PUSH NOTIFICATIONS ---------------- */
+async function refreshPushStatus(){
+  const statusText = document.getElementById('pushStatusText');
+  const btn = document.getElementById('enablePushBtn');
+  if(!statusText || !btn) return;
+  const status = await api.pushStatus();
+  if(status==='active'){ statusText.textContent = '✅ الإشعارات مفعّلة'; btn.textContent = 'إعادة التفعيل'; }
+  else if(status==='denied'){ statusText.textContent = '🚫 محظورة من إعدادات المتصفح — فعّليها من إعدادات الموقع بالمتصفح'; btn.textContent = 'تفعيل إشعارات الهاتف'; }
+  else if(status==='unsupported'){ statusText.textContent = 'غير مدعومة على هذا المتصفح'; btn.disabled = true; }
+  else { statusText.textContent = 'غير مفعّلة بعد'; btn.textContent = 'تفعيل إشعارات الهاتف'; }
+}
+document.getElementById('enablePushBtn').addEventListener('click', async ()=>{
+  try{
+    await api.enablePush('expert');
+    toast('تم تفعيل إشعارات الهاتف ✅');
+    refreshPushStatus();
+  }catch(e){
+    if(e.error==='permission_denied') toast('يرجى السماح بالإشعارات من إعدادات المتصفح');
+    else if(e.error==='push_not_configured') toast('الإشعارات غير مفعّلة من إدارة GlowSpot بعد');
+    else toast('تعذر تفعيل الإشعارات');
+  }
+});
 
 /* ---------------- AUTH ---------------- */
 document.getElementById('gateBtn').addEventListener('click', async ()=>{
@@ -602,6 +635,7 @@ function renderServices(){
 function renderAvailability(){
   const ex = me(); if(!ex) return;
 
+  refreshPushStatus();
   const homeChip = document.getElementById('homeServiceToggle');
   homeChip.classList.toggle('active', !!ex.homeService);
   homeChip.textContent = ex.homeService ? '✓ مفعّلة' : 'غير مفعّلة';

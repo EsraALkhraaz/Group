@@ -1,0 +1,12 @@
+{
+  "name": "GlowSpot",
+  "short_name": "GlowSpot",
+  "start_url": "/glowspot-customer.html",
+  "display": "standalone",
+  "background_color": "#FAF5F0",
+  "theme_color": "#8B4B56",
+  "icons": [
+    { "src": "/icon-512.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

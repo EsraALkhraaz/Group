@@ -50,7 +50,8 @@ async function initSchema() {
       "workingHours" JSONB DEFAULT '{}',
       "leaveRequests" JSONB DEFAULT '[]',
       "clientNotes" JSONB DEFAULT '{}',
-      portfolio JSONB DEFAULT '{}'
+      portfolio JSONB DEFAULT '{}',
+      "pushSubscriptions" JSONB DEFAULT '[]'
     );
 
     CREATE TABLE IF NOT EXISTS customers (
@@ -60,7 +61,8 @@ async function initSchema() {
       password_hash TEXT NOT NULL,
       favorites JSONB DEFAULT '[]',
       "favoriteExperts" JSONB DEFAULT '[]',
-      address TEXT
+      address TEXT,
+      "pushSubscriptions" JSONB DEFAULT '[]'
     );
 
     CREATE TABLE IF NOT EXISTS packages (
@@ -147,6 +149,11 @@ async function initSchema() {
   // from any database that already picked it up.
   await pool.query(`ALTER TABLE customers DROP COLUMN IF EXISTS email`);
   await pool.query(`ALTER TABLE experts DROP COLUMN IF EXISTS email`);
+
+  // Real phone-level push notifications (Web Push) — replaces in-tab-only
+  // polling. Each row can hold multiple subscriptions (one per browser/device).
+  await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS "pushSubscriptions" JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE experts ADD COLUMN IF NOT EXISTS "pushSubscriptions" JSONB DEFAULT '[]'`);
 }
 
 function uid(prefix) {
@@ -233,7 +240,8 @@ const expertsStmt = {
   },
   delete: { run: (id) => pool.query('DELETE FROM experts WHERE id=$1', [id]) },
   updateRating: { run: (rating, id) => pool.query('UPDATE experts SET rating=$1 WHERE id=$2', [rating, id]) },
-  updatePassword: { run: (passwordHash, id) => pool.query('UPDATE experts SET password_hash=$1 WHERE id=$2', [passwordHash, id]) }
+  updatePassword: { run: (passwordHash, id) => pool.query('UPDATE experts SET password_hash=$1 WHERE id=$2', [passwordHash, id]) },
+  updatePushSubscriptions: { run: (subs, id) => pool.query('UPDATE experts SET "pushSubscriptions"=$1 WHERE id=$2', [j(subs), id]) }
 };
 
 const customersStmt = {
@@ -246,7 +254,8 @@ const customersStmt = {
       [c.id, c.name, c.phone, c.password_hash, j(c.favorites), j(c.favoriteExperts)]
     )
   },
-  updatePassword: { run: (passwordHash, id) => pool.query('UPDATE customers SET password_hash=$1 WHERE id=$2', [passwordHash, id]) }
+  updatePassword: { run: (passwordHash, id) => pool.query('UPDATE customers SET password_hash=$1 WHERE id=$2', [passwordHash, id]) },
+  updatePushSubscriptions: { run: (subs, id) => pool.query('UPDATE customers SET "pushSubscriptions"=$1 WHERE id=$2', [j(subs), id]) }
 };
 
 const packagesStmt = {

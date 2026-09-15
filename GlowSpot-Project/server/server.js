@@ -10,6 +10,7 @@ const {
 } = require('./db');
 const { signToken, requireAuth } = require('./auth');
 const migrateToNeon = require('./migrate-to-neon');
+const push = require('./push');
 
 const ADMIN_PASSWORD = process.env.GLOWSPOT_ADMIN_PASSWORD || 'glowspot2026';
 const PORT = process.env.PORT || 3000;
@@ -104,6 +105,33 @@ app.post('/api/centers/:id/view', ar(async (req, res) => {
 }));
 app.get('/api/settings', ar(async (req, res) => {
   res.json({ commissionRate: await getCommissionRate() });
+}));
+
+/* ================= push notifications ================= */
+app.get('/api/push/vapid-public-key', ar(async (req, res) => {
+  res.json({ publicKey: push.publicKey, enabled: push.enabled });
+}));
+
+app.post('/api/push/subscribe', requireAuth('customer', 'expert'), ar(async (req, res) => {
+  const { subscription } = req.body || {};
+  if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'invalid_subscription' });
+  const stmt = req.auth.role === 'customer' ? customersStmt : expertsStmt;
+  const row = await stmt.byId.get(req.auth.id);
+  if (!row) return res.status(404).json({ error: 'not_found' });
+  const existing = (row.pushSubscriptions || []).filter((s) => s.endpoint !== subscription.endpoint);
+  existing.push(subscription);
+  await stmt.updatePushSubscriptions.run(existing, row.id);
+  res.json({ ok: true });
+}));
+
+app.post('/api/push/unsubscribe', requireAuth('customer', 'expert'), ar(async (req, res) => {
+  const { endpoint } = req.body || {};
+  const stmt = req.auth.role === 'customer' ? customersStmt : expertsStmt;
+  const row = await stmt.byId.get(req.auth.id);
+  if (!row) return res.status(404).json({ error: 'not_found' });
+  const remaining = (row.pushSubscriptions || []).filter((s) => s.endpoint !== endpoint);
+  await stmt.updatePushSubscriptions.run(remaining, row.id);
+  res.json({ ok: true });
 }));
 
 /* ================= auth ================= */
@@ -269,6 +297,11 @@ app.post('/api/bookings', requireAuth('customer'), ar(async (req, res) => {
   };
   await bookingsStmt.insert.run(row);
   res.json(bookingPublic(await bookingsStmt.byId.get(row.id)));
+
+  if (row.expertId) {
+    const ex = await getExpert(row.expertId);
+    if (ex) push.sendPushToRow(ex, expertsStmt, 'طلب حجز جديد 🔔', `${row.customerName} — ${row.service} في ${row.date}`);
+  }
 }));
 
 app.post('/api/reviews', requireAuth('customer'), ar(async (req, res) => {
@@ -328,9 +361,17 @@ app.patch('/api/bookings/:id', requireAuth('customer', 'expert', 'center'), ar(a
     }
     if (status === 'declined') {
       if (!declineReason) return res.status(400).json({ error: 'decline_reason_required' });
-      return setStatus('declined', { declineReason, alternatives: j(alternatives || []) });
+      await setStatus('declined', { declineReason, alternatives: j(alternatives || []) });
+      const decCust = await customersStmt.byId.get(booking.customerId);
+      if (decCust) push.sendPushToRow(decCust, customersStmt, 'لم يُقبل حجزك ❌', `${booking.service} — ${declineReason}`);
+      return;
     }
-    return setStatus(status);
+    await setStatus(status);
+    if (status === 'confirmed') {
+      const confCust = await customersStmt.byId.get(booking.customerId);
+      if (confCust) push.sendPushToRow(confCust, customersStmt, 'تم تأكيد حجزك ✅', `${booking.service} — ${booking.centerName} الساعة ${booking.time}`);
+    }
+    return;
   }
 
   if (role === 'center') {

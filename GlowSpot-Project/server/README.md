@@ -49,6 +49,7 @@ deploying anywhere other than your own machine:
 | `DATABASE_URL` | — (required) | Postgres connection string |
 | `GLOWSPOT_JWT_SECRET` | an insecure built-in default | Signs session tokens — **set a real random value before deploying** |
 | `GLOWSPOT_ADMIN_PASSWORD` | `glowspot2026` | Admin login password |
+| `PUSH_VAPID_PUBLIC_KEY` / `PUSH_VAPID_PRIVATE_KEY` | — (optional) | Enables real phone push notifications (Web Push). Generate a pair with `node -e "console.log(require('web-push').generateVAPIDKeys())"`. Without these set, push is a safe no-op and the apps just report it as unavailable. |
 
 SSL is auto-enabled for any `DATABASE_URL` that isn't `localhost`/`127.0.0.1`
 (with `rejectUnauthorized: false`, the usual setting for managed Postgres
