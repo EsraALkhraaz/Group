@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const path = require('path');
 const {
   db, uid, dbReady, j,
-  centersStmt, expertsStmt, customersStmt, packagesStmt, bookingsStmt, reviewsStmt, settingsStmt,
+  centersStmt, expertsStmt, customersStmt, packagesStmt, bookingsStmt, reviewsStmt, settingsStmt, offersStmt,
   centerPublic, expertPublic, customerPublic, bookingPublic, bookingBusyView
 } = require('./db');
 const { signToken, requireAuth } = require('./auth');
@@ -44,6 +44,19 @@ async function getCommissionRate() {
   return Number.isFinite(rate) ? rate : 0.10;
 }
 function round2(n) { return Math.round(n * 100) / 100; }
+
+/* Loyalty wallet: 10 points = 1 LYD off a future booking. Earned by
+   completing a booking or leaving a review, redeemable at booking time. */
+const POINTS_PER_LYD = 10;
+async function awardPoints(customerId, points) {
+  const cust = await customersStmt.byId.get(customerId);
+  if (!cust) return;
+  await customersStmt.updateWalletPoints.run((cust.walletPoints || 0) + points, customerId);
+}
+async function refundPoints(booking) {
+  if (!booking.walletPointsRedeemed) return;
+  await awardPoints(booking.customerId, booking.walletPointsRedeemed);
+}
 
 /* No SMS/email is wired up yet, so a self-service "forgot password" flow
    isn't possible — instead, whoever already manages an account (admin for
@@ -302,6 +315,34 @@ app.post('/api/bookings', requireAuth('customer'), ar(async (req, res) => {
   const phone = (body.phone || '').trim();
   if (!customerName || !phone) return res.status(400).json({ error: 'missing_customer_info' });
 
+  // Center-run service discounts apply automatically whenever one matches —
+  // the customer doesn't have to enter a code, and the price shown while
+  // booking is exactly what she pays.
+  let originalPrice = null;
+  if (price != null && body.mode !== 'package') {
+    const offer = await offersStmt.activeFor.get(center.id, department, service);
+    if (offer) {
+      originalPrice = price;
+      price = round2(price * (1 - offer.discountPercent / 100));
+    }
+  }
+
+  // Loyalty wallet redemption: opt-in, capped by her balance and by the
+  // booking price (10 points = 1 LYD, spent in whole-LYD blocks so the
+  // resulting price is never fractional-point weird).
+  let walletPointsRedeemed = 0;
+  if (body.useWalletPoints && price != null && price > 0) {
+    const cust = await customersStmt.byId.get(req.auth.id);
+    const balance = cust ? (cust.walletPoints || 0) : 0;
+    const maxRedeemable = Math.min(balance, Math.floor(price) * POINTS_PER_LYD);
+    walletPointsRedeemed = maxRedeemable - (maxRedeemable % POINTS_PER_LYD);
+    if (walletPointsRedeemed > 0) {
+      if (originalPrice == null) originalPrice = price;
+      price = round2(price - walletPointsRedeemed / POINTS_PER_LYD);
+      await customersStmt.updateWalletPoints.run(balance - walletPointsRedeemed, cust.id);
+    }
+  }
+
   // Commission is computed and stored at creation time (not derived later
   // from the live rate) so a future rate change never rewrites the numbers
   // on past bookings.
@@ -319,7 +360,8 @@ app.post('/api/bookings', requireAuth('customer'), ar(async (req, res) => {
     date: body.date, time: body.time, duration, price, commissionAmount, netAmount, status,
     serviceLocation: body.serviceLocation || 'center',
     homeAddress: body.serviceLocation === 'home' ? (body.homeAddress || '').trim() : null,
-    declineReason: null, alternatives: []
+    declineReason: null, alternatives: [],
+    originalPrice, walletPointsRedeemed
   };
   await bookingsStmt.insert.run(row);
   res.json(bookingPublic(await bookingsStmt.byId.get(row.id)));
@@ -356,7 +398,44 @@ app.post('/api/reviews', requireAuth('customer'), ar(async (req, res) => {
   await reviewsStmt.insert.run(row);
   await recomputeCenterRating(booking.centerId);
   await recomputeExpertRating(booking.expertId);
+  awardPoints(req.auth.id, 15);
   res.json(row);
+}));
+
+/* ================= offers (center-run service discounts) ================= */
+app.get('/api/offers', ar(async (req, res) => {
+  res.json(await offersStmt.active.all());
+}));
+
+app.get('/api/offers/center-mine', requireAuth('center'), ar(async (req, res) => {
+  res.json(await offersStmt.byCenter.all(req.auth.centerId));
+}));
+
+app.post('/api/offers', requireAuth('center'), ar(async (req, res) => {
+  const { department, service, discountPercent, note, expiresAt } = req.body || {};
+  const center = await getCenter(req.auth.centerId);
+  if (!center) return res.status(404).json({ error: 'not_found' });
+  if (!department || !center.departments.includes(department)) return res.status(400).json({ error: 'invalid_department' });
+  if (!service || typeof service !== 'string' || !service.trim()) return res.status(400).json({ error: 'invalid_service' });
+  const pct = parseInt(discountPercent, 10);
+  if (!(pct >= 1 && pct <= 90)) return res.status(400).json({ error: 'invalid_discount' });
+
+  const row = {
+    id: uid('off'), centerId: center.id, centerName: center.name,
+    department, service: service.trim(), discountPercent: pct,
+    note: (note || '').trim() || null, expiresAt: expiresAt || null,
+    createdAt: new Date().toISOString()
+  };
+  await offersStmt.insert.run(row);
+  res.json(row);
+}));
+
+app.delete('/api/offers/:id', requireAuth('center'), ar(async (req, res) => {
+  const offer = await offersStmt.byId.get(req.params.id);
+  if (!offer) return res.status(404).json({ error: 'not_found' });
+  if (offer.centerId !== req.auth.centerId) return res.status(403).json({ error: 'forbidden' });
+  await offersStmt.delete.run(offer.id);
+  res.json({ ok: true });
 }));
 
 /* ================= bookings: shared mutation endpoint ================= */
@@ -382,6 +461,7 @@ app.patch('/api/bookings/:id', requireAuth('customer', 'expert', 'center'), ar(a
       return res.status(400).json({ error: 'invalid_transition' });
     }
     await setStatus('cancelled');
+    refundPoints(booking);
     notifyWaitlistOfOpenSlot(booking);
     return;
   }
@@ -399,6 +479,7 @@ app.patch('/api/bookings/:id', requireAuth('customer', 'expert', 'center'), ar(a
     if (status === 'declined') {
       if (!declineReason) return res.status(400).json({ error: 'decline_reason_required' });
       await setStatus('declined', { declineReason, alternatives: j(alternatives || []) });
+      refundPoints(booking);
       const decCust = await customersStmt.byId.get(booking.customerId);
       if (decCust) push.sendPushToRow(decCust, customersStmt, 'لم يُقبل حجزك ❌', `${booking.service} — ${declineReason}`);
       return;
@@ -408,7 +489,8 @@ app.patch('/api/bookings/:id', requireAuth('customer', 'expert', 'center'), ar(a
       const confCust = await customersStmt.byId.get(booking.customerId);
       if (confCust) push.sendPushToRow(confCust, customersStmt, 'تم تأكيد حجزك ✅', `${booking.service} — ${booking.centerName} الساعة ${booking.time}`);
     }
-    if (status === 'cancelled') notifyWaitlistOfOpenSlot(booking);
+    if (status === 'cancelled') { refundPoints(booking); notifyWaitlistOfOpenSlot(booking); }
+    if (status === 'completed') awardPoints(booking.customerId, 10);
     return;
   }
 
@@ -416,6 +498,7 @@ app.patch('/api/bookings/:id', requireAuth('customer', 'expert', 'center'), ar(a
     if (booking.centerId !== req.auth.centerId) return res.status(403).json({ error: 'forbidden' });
     if (status !== 'cancelled') return res.status(400).json({ error: 'invalid_transition' });
     await setStatus('cancelled');
+    refundPoints(booking);
     notifyWaitlistOfOpenSlot(booking);
     return;
   }

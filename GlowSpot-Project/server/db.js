@@ -62,7 +62,8 @@ async function initSchema() {
       favorites JSONB DEFAULT '[]',
       "favoriteExperts" JSONB DEFAULT '[]',
       address TEXT,
-      "pushSubscriptions" JSONB DEFAULT '[]'
+      "pushSubscriptions" JSONB DEFAULT '[]',
+      "walletPoints" INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS packages (
@@ -95,7 +96,9 @@ async function initSchema() {
       "homeAddress" TEXT,
       "declineReason" TEXT,
       alternatives JSONB DEFAULT '[]',
-      "rebookReminderSentAt" TEXT
+      "rebookReminderSentAt" TEXT,
+      "originalPrice" REAL,
+      "walletPointsRedeemed" INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS reviews (
@@ -118,6 +121,18 @@ async function initSchema() {
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS offers (
+      id TEXT PRIMARY KEY,
+      "centerId" TEXT NOT NULL,
+      "centerName" TEXT,
+      department TEXT NOT NULL,
+      service TEXT NOT NULL,
+      "discountPercent" INTEGER NOT NULL,
+      note TEXT,
+      "expiresAt" TEXT,
+      "createdAt" TEXT
     );
   `);
 
@@ -173,6 +188,14 @@ async function initSchema() {
   // Rebooking reminders: marks a completed booking once its "time for your
   // next appointment" push has gone out, so the periodic scan never re-sends it.
   await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "rebookReminderSentAt" TEXT`);
+
+  // Loyalty wallet + center-run offers: a booking's price can now be reduced
+  // by a center's own service discount and/or redeemed wallet points —
+  // originalPrice keeps the pre-discount amount for display, and
+  // walletPointsRedeemed is refunded automatically if the booking falls through.
+  await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS "walletPoints" INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "originalPrice" REAL`);
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "walletPointsRedeemed" INTEGER DEFAULT 0`);
 }
 
 function uid(prefix) {
@@ -275,7 +298,8 @@ const customersStmt = {
   },
   updatePassword: { run: (passwordHash, id) => pool.query('UPDATE customers SET password_hash=$1 WHERE id=$2', [passwordHash, id]) },
   updatePushSubscriptions: { run: (subs, id) => pool.query('UPDATE customers SET "pushSubscriptions"=$1 WHERE id=$2', [j(subs), id]) },
-  byFavoriteExpert: { all: (expertId) => queryAll('SELECT * FROM customers WHERE "favoriteExperts" @> $1::jsonb', [j([expertId])]) }
+  byFavoriteExpert: { all: (expertId) => queryAll('SELECT * FROM customers WHERE "favoriteExperts" @> $1::jsonb', [j([expertId])]) },
+  updateWalletPoints: { run: (points, id) => pool.query('UPDATE customers SET "walletPoints"=$1 WHERE id=$2', [points, id]) }
 };
 
 const packagesStmt = {
@@ -305,9 +329,9 @@ const bookingsStmt = {
   },
   insert: {
     run: (b) => pool.query(
-      `INSERT INTO bookings (id,"centerId","centerName",department,service,"expertId","expertName","customerId","customerName",phone,date,time,duration,price,"commissionAmount","netAmount",status,"serviceLocation","homeAddress","declineReason",alternatives)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
-      [b.id, b.centerId, b.centerName, b.department, b.service, b.expertId, b.expertName, b.customerId, b.customerName, b.phone, b.date, b.time, b.duration, b.price, b.commissionAmount, b.netAmount, b.status, b.serviceLocation, b.homeAddress, b.declineReason, j(b.alternatives)]
+      `INSERT INTO bookings (id,"centerId","centerName",department,service,"expertId","expertName","customerId","customerName",phone,date,time,duration,price,"commissionAmount","netAmount",status,"serviceLocation","homeAddress","declineReason",alternatives,"originalPrice","walletPointsRedeemed")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+      [b.id, b.centerId, b.centerName, b.department, b.service, b.expertId, b.expertName, b.customerId, b.customerName, b.phone, b.date, b.time, b.duration, b.price, b.commissionAmount, b.netAmount, b.status, b.serviceLocation, b.homeAddress, b.declineReason, j(b.alternatives), b.originalPrice != null ? b.originalPrice : null, b.walletPointsRedeemed || 0]
     )
   },
   /* Repeat customers of an expert — used to build the waitlist notified when
@@ -360,6 +384,30 @@ const reviewsStmt = {
   }
 };
 
+const offersStmt = {
+  byId: { get: (id) => queryOne('SELECT * FROM offers WHERE id = $1', [id]) },
+  byCenter: { all: (centerId) => queryAll('SELECT * FROM offers WHERE "centerId" = $1 ORDER BY "createdAt" DESC', [centerId]) },
+  /* Customer-facing list: only offers that haven't expired. */
+  active: { all: () => queryAll(`SELECT * FROM offers WHERE "expiresAt" IS NULL OR "expiresAt"::date >= CURRENT_DATE ORDER BY "createdAt" DESC`) },
+  /* The one offer (if any) that currently applies to a given center+department+service, used to price a booking. */
+  activeFor: {
+    get: (centerId, department, service) => queryOne(
+      `SELECT * FROM offers WHERE "centerId" = $1 AND department = $2 AND service = $3
+       AND ("expiresAt" IS NULL OR "expiresAt"::date >= CURRENT_DATE)
+       ORDER BY "createdAt" DESC LIMIT 1`,
+      [centerId, department, service]
+    )
+  },
+  insert: {
+    run: (o) => pool.query(
+      `INSERT INTO offers (id,"centerId","centerName",department,service,"discountPercent",note,"expiresAt","createdAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [o.id, o.centerId, o.centerName, o.department, o.service, o.discountPercent, o.note, o.expiresAt, o.createdAt]
+    )
+  },
+  delete: { run: (id) => pool.query('DELETE FROM offers WHERE id=$1', [id]) }
+};
+
 /* ---------------- seed (mirrors the front-end demo data) ---------------- */
 async function seed() {
   const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM centers');
@@ -397,6 +445,6 @@ const dbReady = initSchema().then(seed);
 
 module.exports = {
   db, uid, dbReady, j,
-  centersStmt, expertsStmt, customersStmt, packagesStmt, bookingsStmt, reviewsStmt, settingsStmt,
+  centersStmt, expertsStmt, customersStmt, packagesStmt, bookingsStmt, reviewsStmt, settingsStmt, offersStmt,
   centerPublic, expertPublic, customerPublic, bookingPublic, bookingBusyView
 };

@@ -243,6 +243,7 @@ let experts = [];
 let packages = [];
 let bookings = [];
 let reviews = [];
+let offers = [];
 let dashCenterId = null;
 let dashSession = null;
 
@@ -271,6 +272,9 @@ async function loadPublicData(){
 async function loadMyBookings(){
   bookings = await api.get('/api/bookings/center-mine', {auth:'center'});
 }
+async function loadMyOffers(){
+  offers = await api.get('/api/offers/center-mine', {auth:'center'});
+}
 
 /* ---------------- AUTH ---------------- */
 document.getElementById('gateBtn').addEventListener('click', async ()=>{
@@ -295,6 +299,7 @@ document.getElementById('logoutBtn').addEventListener('click', ()=>{
 async function enterDash(){
   await loadPublicData();
   await loadMyBookings();
+  await loadMyOffers();
   document.getElementById('viewGate').classList.remove('visible');
   document.getElementById('mainApp').classList.remove('hidden');
   renderDashboard();
@@ -311,6 +316,7 @@ function renderDashboard(){
     .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
   const myReviews = reviews.filter(r=>r.centerId===c.id)
     .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const myOffers = offers.filter(o=>o.centerId===c.id);
 
   const statusLabel = c.status==='approved' ? '✅ مفعّل ومرئي للعميلات' : c.status==='disabled' ? '🔒 معطّل من إدارة GlowSpot' : '⏳ قيد المراجعة من إدارة GlowSpot';
   area.innerHTML = `
@@ -404,6 +410,32 @@ function renderDashboard(){
         <input id="newPkgItems" placeholder="المحتويات (مثال: شعر + مكياج)">
         <input id="newPkgPrice" placeholder="السعر (د.ل)" type="number">
         <button id="addPkgBtn">إضافة</button>
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <h4>العروض والخصومات (${myOffers.length})</h4>
+      <p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">خصم تضعينه على خدمة معيّنة — يظهر للعميلات في صفحة العروض وعلى صفحة المركز، ويُطبَّق تلقائياً عند الحجز</p>
+      <div id="offersRows">
+        ${myOffers.map(o=>`
+          <div class="list-row">
+            <div class="main">
+              <div class="t1">${o.service} — خصم ${o.discountPercent}%</div>
+              <div class="t2">${DEPARTMENTS[o.department].ar}${o.note ? ' · '+o.note : ''}${o.expiresAt ? ' · ينتهي '+o.expiresAt.split('-').reverse().join('/') : ''}</div>
+            </div>
+            <button class="icon-btn" data-remove-offer="${o.id}">حذف</button>
+          </div>
+        `).join('') || '<div class="empty-state">لا توجد عروض بعد</div>'}
+      </div>
+      <div class="add-form" style="margin-top:12px;">
+        <label style="margin-top:0;">إضافة عرض جديد</label>
+        <select id="newOfferDept">${c.departments.map(d=>`<option value="${d}">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</option>`).join('') || '<option value="">أضيفي قسماً أولاً</option>'}</select>
+        <select id="newOfferService"></select>
+        <input id="newOfferDiscount" placeholder="نسبة الخصم % (1-90)" type="number" min="1" max="90">
+        <input id="newOfferNote" placeholder="ملاحظة (اختياري)">
+        <label style="margin-top:8px;font-size:11.5px;">تاريخ الانتهاء (اختياري)</label>
+        <input id="newOfferExpiry" type="date">
+        <button id="addOfferBtn">إضافة</button>
       </div>
     </div>
 
@@ -588,6 +620,47 @@ function renderDashboard(){
       renderDashboard();
       toast('تمت إضافة الباقة');
     }catch(e){ toast('تعذر إضافة الباقة'); }
+  });
+
+  document.querySelectorAll('[data-remove-offer]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      try{
+        await api.del('/api/offers/'+btn.dataset.removeOffer, {auth:'center'});
+        offers = offers.filter(o=>o.id!==btn.dataset.removeOffer);
+        renderDashboard();
+        toast('تم حذف العرض');
+      }catch(e){ toast('تعذر الحذف'); }
+    });
+  });
+
+  const newOfferDeptSelect = document.getElementById('newOfferDept');
+  const newOfferServiceSelect = document.getElementById('newOfferService');
+  function refreshOfferServiceOptions(){
+    const d = newOfferDeptSelect.value;
+    newOfferServiceSelect.innerHTML = d && DEPARTMENTS[d]
+      ? DEPARTMENTS[d].services.map(s=>`<option value="${s}">${s}</option>`).join('')
+      : '<option value="">أضيفي قسماً أولاً</option>';
+  }
+  if(newOfferDeptSelect){
+    refreshOfferServiceOptions();
+    newOfferDeptSelect.addEventListener('change', refreshOfferServiceOptions);
+  }
+
+  const addOfferBtn = document.getElementById('addOfferBtn');
+  if(addOfferBtn) addOfferBtn.addEventListener('click', async ()=>{
+    const department = document.getElementById('newOfferDept').value;
+    const service = document.getElementById('newOfferService').value;
+    const discountPercent = parseInt(document.getElementById('newOfferDiscount').value, 10);
+    const note = document.getElementById('newOfferNote').value.trim();
+    const expiresAt = document.getElementById('newOfferExpiry').value || null;
+    if(!department || !service){ toast('يرجى اختيار القسم والخدمة'); return; }
+    if(!(discountPercent>=1 && discountPercent<=90)){ toast('نسبة الخصم يجب أن تكون بين 1 و90'); return; }
+    try{
+      const created = await api.post('/api/offers', {department, service, discountPercent, note, expiresAt}, {auth:'center'});
+      offers.push(created);
+      renderDashboard();
+      toast('تمت إضافة العرض');
+    }catch(e){ toast('تعذر إضافة العرض'); }
   });
 }
 
