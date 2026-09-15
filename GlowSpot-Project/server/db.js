@@ -29,7 +29,8 @@ async function initSchema() {
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       "paymentMethods" JSONB DEFAULT '{}',
-      views INTEGER DEFAULT 0
+      views INTEGER DEFAULT 0,
+      gallery JSONB DEFAULT '[]'
     );
 
     CREATE TABLE IF NOT EXISTS experts (
@@ -48,7 +49,8 @@ async function initSchema() {
       "serviceDurations" JSONB DEFAULT '{}',
       "workingHours" JSONB DEFAULT '{}',
       "leaveRequests" JSONB DEFAULT '[]',
-      "clientNotes" JSONB DEFAULT '{}'
+      "clientNotes" JSONB DEFAULT '{}',
+      portfolio JSONB DEFAULT '{}'
     );
 
     CREATE TABLE IF NOT EXISTS customers (
@@ -128,6 +130,12 @@ async function initSchema() {
   // admin's later change via PATCH /api/settings is never clobbered by a
   // redeploy.
   await pool.query(`INSERT INTO settings (key, value) VALUES ('commissionRate', '0.10') ON CONFLICT (key) DO NOTHING`);
+
+  // Photo galleries: centers get a flat list, experts get named categories
+  // (e.g. "قص" / "صبغة") each holding their own photo list — added after
+  // both tables already existed live.
+  await pool.query(`ALTER TABLE centers ADD COLUMN IF NOT EXISTS gallery JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE experts ADD COLUMN IF NOT EXISTS portfolio JSONB DEFAULT '{}'`);
 }
 
 function uid(prefix) {
@@ -188,9 +196,9 @@ const centersStmt = {
   byUsername: { get: (username) => queryOne('SELECT * FROM centers WHERE username = $1', [username]) },
   insert: {
     run: (c) => pool.query(
-      `INSERT INTO centers (id,name,city,location,about,verified,rating,status,departments,username,password_hash,"paymentMethods",views)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-      [c.id, c.name, c.city, c.location, c.about, c.verified, c.rating, c.status, j(c.departments), c.username, c.password_hash, j(c.paymentMethods), c.views]
+      `INSERT INTO centers (id,name,city,location,about,verified,rating,status,departments,username,password_hash,"paymentMethods",views,gallery)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [c.id, c.name, c.city, c.location, c.about, c.verified, c.rating, c.status, j(c.departments), c.username, c.password_hash, j(c.paymentMethods), c.views, j(c.gallery || [])]
     )
   },
   updateStatus: { run: (status, id) => pool.query('UPDATE centers SET status=$1 WHERE id=$2', [status, id]) },
@@ -207,9 +215,9 @@ const expertsStmt = {
   byCenter: { all: (centerId) => queryAll('SELECT * FROM experts WHERE "centerId" = $1', [centerId]) },
   insert: {
     run: (e) => pool.query(
-      `INSERT INTO experts (id,"centerId",department,name,specialty,rating,available,"homeService",color,phone,password_hash,"servicePrices","serviceDurations","workingHours","leaveRequests","clientNotes")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-      [e.id, e.centerId, e.department, e.name, e.specialty, e.rating, e.available, e.homeService, e.color, e.phone, e.password_hash, j(e.servicePrices), j(e.serviceDurations), j(e.workingHours), j(e.leaveRequests), j(e.clientNotes)]
+      `INSERT INTO experts (id,"centerId",department,name,specialty,rating,available,"homeService",color,phone,password_hash,"servicePrices","serviceDurations","workingHours","leaveRequests","clientNotes",portfolio)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+      [e.id, e.centerId, e.department, e.name, e.specialty, e.rating, e.available, e.homeService, e.color, e.phone, e.password_hash, j(e.servicePrices), j(e.serviceDurations), j(e.workingHours), j(e.leaveRequests), j(e.clientNotes), j(e.portfolio || {})]
     )
   },
   delete: { run: (id) => pool.query('DELETE FROM experts WHERE id=$1', [id]) },

@@ -132,6 +132,13 @@ main{padding:0 16px 4px;}
 
 .expert-group-label{font-size:13px;font-weight:800;color:var(--maroon-dark);margin:14px 2px 8px;}
 .expert-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:11px;}
+.gallery-strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}
+.gallery-thumb{flex-shrink:0;width:88px;height:88px;border-radius:12px;overflow:hidden;background:var(--line);cursor:pointer;}
+.gallery-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.portfolio-cat-label{font-size:12.5px;font-weight:800;color:var(--maroon-dark);margin:14px 0 8px;}
+.portfolio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.portfolio-grid .gallery-thumb{width:100%;height:auto;aspect-ratio:1;}
+.enlarged-photo{width:100%;border-radius:14px;display:block;max-height:70vh;object-fit:contain;background:#000;}
 .avatar{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cairo',sans-serif;font-weight:800;font-size:17px;color:#fff;flex-shrink:0;position:relative;}
 .pulse-dot{position:absolute;bottom:-1px;left:-1px;width:13px;height:13px;border-radius:50%;border:2.5px solid var(--card);background:var(--busy);}
 .pulse-dot.free{background:var(--gold);}
@@ -784,6 +791,13 @@ function renderCenterDetail(){
       <button class="book-cta" id="generalBookBtn">احجزي موعد</button>
     </div>
 
+    ${(c.gallery||[]).length ? `
+      <p class="section-title">صور المركز</p>
+      <div class="gallery-strip" id="centerGalleryStrip">
+        ${c.gallery.map((photo,i)=>`<div class="gallery-thumb" data-center-photo="${i}"><img src="${photo}"></div>`).join('')}
+      </div>
+    ` : ''}
+
     ${centerPkgs.length ? `
       <p class="section-title">الباقات</p>
       ${centerPkgs.map(p=>`
@@ -821,7 +835,9 @@ function renderCenterDetail(){
     const list = centerExperts.filter(e=>e.department===d);
     if(list.length===0) return;
     html += `<p class="expert-group-label">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar} — ${list.length} خبيرات</p>`;
-    html += list.map(e=>`
+    html += list.map(e=>{
+      const hasPortfolio = e.portfolio && Object.values(e.portfolio).some(arr=>(arr||[]).length>0);
+      return `
       <div class="expert-card">
         <div class="avatar" style="background:${e.color}">${initial(e.name)}<span class="pulse-dot ${e.available?'free':''}"></span></div>
         <div class="expert-info">
@@ -829,9 +845,11 @@ function renderCenterDetail(){
           <div class="expert-spec">${e.specialty}</div>
           <div class="expert-rating">⭐ ${e.rating.toFixed(1)} ${e.available ? '· متفرغة الآن' : '· مشغولة حالياً'}</div>
         </div>
+        ${hasPortfolio ? `<button class="fav-btn" data-view-portfolio="${e.id}" style="font-size:16px;">📷</button>` : ''}
         <button class="fav-btn" data-fav-expert="${e.id}" style="font-size:16px;">${isFavoritedExpert(e.id)?'♥':'♡'}</button>
         <button class="expert-book-btn" data-id="${e.id}">حجز</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   });
   groupsWrap.innerHTML = html || '<div class="empty-state">لا توجد خبيرات في هذا القسم بعد</div>';
   groupsWrap.querySelectorAll('.expert-book-btn').forEach(btn=>{
@@ -839,6 +857,44 @@ function renderCenterDetail(){
   });
   groupsWrap.querySelectorAll('[data-fav-expert]').forEach(btn=>{
     btn.addEventListener('click', ()=> toggleFavoriteExpert(btn.dataset.favExpert));
+  });
+  groupsWrap.querySelectorAll('[data-view-portfolio]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openExpertPortfolio(btn.dataset.viewPortfolio));
+  });
+
+  body.querySelectorAll('[data-center-photo]').forEach(thumb=>{
+    thumb.addEventListener('click', ()=> openEnlargedPhoto(c.gallery[parseInt(thumb.dataset.centerPhoto)]));
+  });
+}
+
+/* ---------------- PHOTO VIEWING (center gallery + expert portfolio) ---------------- */
+function openEnlargedPhoto(photo, onBack){
+  document.getElementById('bookOverlay').classList.add('visible');
+  document.getElementById('sheetContent').innerHTML = `
+    ${onBack ? `<button class="package-btn" id="photoBackBtn" style="margin-bottom:10px;">→ رجوع للمعرض</button>` : ''}
+    <img class="enlarged-photo" src="${photo}">
+  `;
+  if(onBack) document.getElementById('photoBackBtn').addEventListener('click', onBack);
+}
+function openExpertPortfolio(expertId){
+  const ex = experts.find(x=>x.id===expertId);
+  if(!ex || !ex.portfolio) return;
+  document.getElementById('bookOverlay').classList.add('visible');
+  const categories = Object.keys(ex.portfolio).filter(cat=>(ex.portfolio[cat]||[]).length>0);
+  document.getElementById('sheetContent').innerHTML = `
+    <h3>معرض أعمال ${ex.name}</h3>
+    ${categories.map(cat=>`
+      <p class="portfolio-cat-label">${cat}</p>
+      <div class="portfolio-grid">
+        ${ex.portfolio[cat].map((photo,i)=>`<div class="gallery-thumb" data-portfolio-photo="${cat}::${i}"><img src="${photo}"></div>`).join('')}
+      </div>
+    `).join('')}
+  `;
+  document.querySelectorAll('[data-portfolio-photo]').forEach(thumb=>{
+    thumb.addEventListener('click', ()=>{
+      const [cat, idx] = thumb.dataset.portfolioPhoto.split('::');
+      openEnlargedPhoto(ex.portfolio[cat][parseInt(idx)], ()=> openExpertPortfolio(expertId));
+    });
   });
 }
 

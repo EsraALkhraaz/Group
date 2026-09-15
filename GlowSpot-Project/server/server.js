@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 3000;
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' })); // portfolio/gallery photos are uploaded as base64 data URLs
 
 /* Wraps an async route handler so a rejected promise reaches Express's
    error handling instead of hanging the request (Express 4 doesn't do
@@ -54,6 +54,14 @@ function genTempPassword() {
   for (let i = 0; i < 8; i++) out += TEMP_PASSWORD_CHARS[crypto.randomInt(TEMP_PASSWORD_CHARS.length)];
   return out;
 }
+
+/* Photos arrive as base64 data URLs (no image host is wired up yet) — cap
+   both count and size per photo so a bug or bad actor can't balloon the
+   free-tier database. Client-side code already resizes/compresses before
+   upload, so legitimate photos stay well under this. */
+const MAX_PHOTO_CHARS = 500000; // ~350KB image, base64-inflated
+function isValidPhoto(p) { return typeof p === 'string' && p.startsWith('data:image/') && p.length <= MAX_PHOTO_CHARS; }
+function isValidPhotoList(arr, maxCount) { return Array.isArray(arr) && arr.length <= maxCount && arr.every(isValidPhoto); }
 
 async function recomputeCenterRating(centerId) {
   const rows = await reviewsStmt.byCenter.all(centerId);
@@ -331,17 +339,19 @@ app.patch('/api/centers/:id', requireAuth('center'), ar(async (req, res) => {
   const current = await getCenter(req.params.id);
   if (!current) return res.status(404).json({ error: 'not_found' });
   const b = req.body || {};
+  if (b.gallery !== undefined && !isValidPhotoList(b.gallery, 24)) return res.status(400).json({ error: 'invalid_gallery' });
   const merged = {
     name: b.name !== undefined ? b.name : current.name,
     city: b.city !== undefined ? b.city : current.city,
     location: b.location !== undefined ? b.location : current.location,
     about: b.about !== undefined ? b.about : current.about,
     departments: b.departments !== undefined ? b.departments : current.departments,
-    paymentMethods: b.paymentMethods !== undefined ? b.paymentMethods : current.paymentMethods
+    paymentMethods: b.paymentMethods !== undefined ? b.paymentMethods : current.paymentMethods,
+    gallery: b.gallery !== undefined ? b.gallery : current.gallery
   };
   await db.query(
-    'UPDATE centers SET name=$1, city=$2, location=$3, about=$4, departments=$5, "paymentMethods"=$6 WHERE id=$7',
-    [merged.name, merged.city, merged.location, merged.about, j(merged.departments), j(merged.paymentMethods), current.id]
+    'UPDATE centers SET name=$1, city=$2, location=$3, about=$4, departments=$5, "paymentMethods"=$6, gallery=$7 WHERE id=$8',
+    [merged.name, merged.city, merged.location, merged.about, j(merged.departments), j(merged.paymentMethods), j(merged.gallery), current.id]
   );
   res.json(centerPublic(await getCenter(current.id)));
 }));
@@ -411,6 +421,13 @@ app.patch('/api/experts/:id', requireAuth('expert', 'center'), ar(async (req, re
   if (!isOwner && !isOwningCenter) return res.status(403).json({ error: 'forbidden' });
 
   const b = req.body || {};
+  if (b.portfolio !== undefined) {
+    const categories = Object.keys(b.portfolio || {});
+    const validShape = b.portfolio && typeof b.portfolio === 'object' && !Array.isArray(b.portfolio) &&
+      categories.length <= 10 &&
+      categories.every((k) => typeof k === 'string' && k.length > 0 && k.length <= 30 && isValidPhotoList(b.portfolio[k], 12));
+    if (!validShape) return res.status(400).json({ error: 'invalid_portfolio' });
+  }
   const merged = {
     available: b.available !== undefined ? !!b.available : !!current.available,
     homeService: b.homeService !== undefined ? !!b.homeService : !!current.homeService,
@@ -418,11 +435,12 @@ app.patch('/api/experts/:id', requireAuth('expert', 'center'), ar(async (req, re
     serviceDurations: b.serviceDurations !== undefined ? b.serviceDurations : current.serviceDurations,
     workingHours: b.workingHours !== undefined ? b.workingHours : current.workingHours,
     leaveRequests: b.leaveRequests !== undefined ? b.leaveRequests : current.leaveRequests,
-    clientNotes: b.clientNotes !== undefined ? b.clientNotes : current.clientNotes
+    clientNotes: b.clientNotes !== undefined ? b.clientNotes : current.clientNotes,
+    portfolio: b.portfolio !== undefined ? b.portfolio : current.portfolio
   };
   await db.query(
-    'UPDATE experts SET available=$1, "homeService"=$2, "servicePrices"=$3, "serviceDurations"=$4, "workingHours"=$5, "leaveRequests"=$6, "clientNotes"=$7 WHERE id=$8',
-    [merged.available, merged.homeService, j(merged.servicePrices), j(merged.serviceDurations), j(merged.workingHours), j(merged.leaveRequests), j(merged.clientNotes), current.id]
+    'UPDATE experts SET available=$1, "homeService"=$2, "servicePrices"=$3, "serviceDurations"=$4, "workingHours"=$5, "leaveRequests"=$6, "clientNotes"=$7, portfolio=$8 WHERE id=$9',
+    [merged.available, merged.homeService, j(merged.servicePrices), j(merged.serviceDurations), j(merged.workingHours), j(merged.leaveRequests), j(merged.clientNotes), j(merged.portfolio), current.id]
   );
   res.json(expertPublic(await getExpert(current.id)));
 }));

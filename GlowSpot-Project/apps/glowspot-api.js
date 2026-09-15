@@ -83,10 +83,38 @@
     return data;
   }
 
+  /* Resizes/compresses an image file to a JPEG data URL before upload —
+     there's no image host wired up yet, so photos are stored as base64 in
+     the database, and keeping each one small (~100-300KB) is what makes
+     that workable on the free-tier storage quota. */
+  function compressImage(file, maxDim, quality) {
+    maxDim = maxDim || 1024;
+    quality = quality || 0.7;
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = function () {
+        img.onerror = reject;
+        img.onload = function () {
+          var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   global.GlowSpotAPI = {
     getToken: getToken,
     setToken: setToken,
     clearToken: clearToken,
+    compressImage: compressImage,
     get: function (path, opts) { return request('GET', path, undefined, opts); },
     post: function (path, body, opts) { return request('POST', path, body || {}, opts); },
     patch: function (path, body, opts) { return request('PATCH', path, body || {}, opts); },
