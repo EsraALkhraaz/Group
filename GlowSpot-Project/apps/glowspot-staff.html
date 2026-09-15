@@ -272,6 +272,40 @@ async function loadMyBookings(){
   bookings = await api.get('/api/bookings/expert-mine', {auth:'expert'});
 }
 
+/* ---------------- IN-APP NOTIFICATIONS (no SMS/email needed) ---------------- */
+function tryNotify(title, body){
+  if(!('Notification' in window)) return;
+  if(Notification.permission === 'granted'){ new Notification(title, {body}); }
+  else if(Notification.permission !== 'denied'){
+    Notification.requestPermission().then(p=>{ if(p==='granted') new Notification(title, {body}); });
+  }
+}
+let seenPendingIds = null; // null until the first check this session — nothing to compare against yet
+function checkNewRequests(freshBookings){
+  const pendingIds = new Set(freshBookings.filter(b=>b.status==='pending').map(b=>b.id));
+  if(seenPendingIds === null){ seenPendingIds = pendingIds; return; }
+  freshBookings.filter(b=>b.status==='pending' && !seenPendingIds.has(b.id)).forEach(b=>{
+    toast('🔔 طلب حجز جديد من ' + b.customerName);
+    tryNotify('طلب حجز جديد', b.customerName + ' — ' + b.service + ' في ' + b.date);
+  });
+  seenPendingIds = pendingIds;
+}
+let pollTimer = null;
+function startPolling(){
+  if(pollTimer) return;
+  pollTimer = setInterval(async ()=>{
+    if(!staffSession) return;
+    try{
+      const fresh = await api.get('/api/bookings/expert-mine', {auth:'expert'});
+      checkNewRequests(fresh);
+      bookings = fresh;
+      if(activeTab==='home') renderHome();
+      if(activeTab==='notifications') renderNotifications();
+    }catch(e){}
+  }, 30000);
+}
+function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+
 /* ---------------- AUTH ---------------- */
 document.getElementById('gateBtn').addEventListener('click', async ()=>{
   const phone = document.getElementById('staffPhone').value.trim();
@@ -288,6 +322,8 @@ document.getElementById('gateBtn').addEventListener('click', async ()=>{
 document.getElementById('logoutBtn').addEventListener('click', ()=>{
   api.clearToken('expert');
   staffSession = null;
+  stopPolling();
+  seenPendingIds = null;
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('viewGate').classList.remove('visible');
 });
@@ -295,11 +331,13 @@ document.getElementById('logoutBtn').addEventListener('click', ()=>{
 async function enterApp(){
   await loadPublicData();
   await loadMyBookings();
+  checkNewRequests(bookings);
   document.getElementById('viewGate').classList.remove('visible');
   document.getElementById('mainApp').classList.remove('hidden');
   renderHeader();
   renderTabs();
   showTab('home');
+  startPolling();
 }
 function renderHeader(){
   const ex = me(); if(!ex) return;

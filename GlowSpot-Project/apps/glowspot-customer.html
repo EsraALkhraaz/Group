@@ -525,6 +525,8 @@ document.getElementById('loginBtn').addEventListener('click', async ()=>{
 document.getElementById('logoutBtn').addEventListener('click', ()=>{
   api.clearToken('customer');
   session = null; customers = []; bookings = [];
+  stopPolling();
+  seenBookingStatuses = null;
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('viewAuth').classList.add('visible');
 });
@@ -541,6 +543,8 @@ function enterApp(){
   renderFavorites();
   renderAppointments();
   checkUpcomingReminder();
+  checkStatusChanges(bookings);
+  startPolling();
 }
 
 /* ---------------- EXPLORE ---------------- */
@@ -1315,6 +1319,42 @@ function tryNotify(title, body){
     Notification.requestPermission().then(p=>{ if(p==='granted') new Notification(title, {body}); });
   }
 }
+
+/* ---------------- IN-APP NOTIFICATIONS (no SMS/email needed) ---------------- */
+let seenBookingStatuses = null; // null until the first check this session — nothing to compare against yet
+function checkStatusChanges(freshBookings){
+  const current = {};
+  freshBookings.forEach(b=> current[b.id] = b.status);
+  if(seenBookingStatuses === null){ seenBookingStatuses = current; return; }
+  freshBookings.forEach(b=>{
+    const prev = seenBookingStatuses[b.id];
+    if(prev !== undefined && prev !== b.status){
+      if(b.status==='confirmed'){
+        toast('✅ تم تأكيد حجزك: ' + b.service + ' في ' + b.centerName);
+        tryNotify('تم تأكيد حجزك', b.service + ' — ' + b.centerName + ' الساعة ' + b.time);
+      } else if(b.status==='declined'){
+        toast('❌ لم يُقبل حجزك: ' + b.service + (b.declineReason ? ' — ' + b.declineReason : ''));
+        tryNotify('لم يُقبل حجزك', b.service + ' — ' + (b.declineReason||''));
+      }
+    }
+  });
+  seenBookingStatuses = current;
+}
+let pollTimer = null;
+function startPolling(){
+  if(pollTimer) return;
+  pollTimer = setInterval(async ()=>{
+    if(!session) return;
+    try{
+      const fresh = await api.get('/api/bookings/mine', {auth:'customer'});
+      checkStatusChanges(fresh);
+      bookings = fresh;
+      if(document.getElementById('viewAppointments').classList.contains('visible')) renderAppointments();
+      checkUpcomingReminder();
+    }catch(e){}
+  }, 30000);
+}
+function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
 
 /* ---------------- PROFILE ---------------- */
 function renderProfile(){
