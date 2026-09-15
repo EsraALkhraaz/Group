@@ -50,7 +50,8 @@ async function initSchema() {
       "workingHours" JSONB DEFAULT '{}',
       "leaveRequests" JSONB DEFAULT '[]',
       "clientNotes" JSONB DEFAULT '{}',
-      portfolio JSONB DEFAULT '{}'
+      portfolio JSONB DEFAULT '{}',
+      email TEXT
     );
 
     CREATE TABLE IF NOT EXISTS customers (
@@ -60,7 +61,8 @@ async function initSchema() {
       password_hash TEXT NOT NULL,
       favorites JSONB DEFAULT '[]',
       "favoriteExperts" JSONB DEFAULT '[]',
-      address TEXT
+      address TEXT,
+      email TEXT
     );
 
     CREATE TABLE IF NOT EXISTS packages (
@@ -141,6 +143,11 @@ async function initSchema() {
   // Saved home address — lets the booking sheet pre-fill the home-service
   // address field instead of the customer retyping it every time.
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT`);
+
+  // Optional email, for booking-status notifications — no SMS/WhatsApp
+  // provider is wired up, so email is the free channel.
+  await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS email TEXT`);
+  await pool.query(`ALTER TABLE experts ADD COLUMN IF NOT EXISTS email TEXT`);
 }
 
 function uid(prefix) {

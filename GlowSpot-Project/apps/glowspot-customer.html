@@ -360,6 +360,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-col
         <input id="accName" placeholder="اسمك الكامل (الاسم واسم العائلة)">
         <label>رقم الهاتف</label>
         <input id="accPhone" type="tel">
+        <label>البريد الإلكتروني (اختياري)</label>
+        <input id="accEmail" type="email" placeholder="لتصلك رسالة عند تأكيد أو رفض الحجز">
         <label>عنوان منزلك</label>
         <input id="accAddress" placeholder="المدينة، المنطقة، أقرب معلم">
         <p style="font-size:11px;color:var(--muted);margin:4px 2px 0;">يُستخدم لتعبئة عنوانك تلقائياً عند حجز خدمة منزلية</p>
@@ -1323,15 +1325,17 @@ function renderProfile(){
   document.getElementById('profilePhone').textContent = cust.phone;
   document.getElementById('accName').value = cust.name || '';
   document.getElementById('accPhone').value = cust.phone || '';
+  document.getElementById('accEmail').value = cust.email || '';
   document.getElementById('accAddress').value = cust.address || '';
 }
 document.getElementById('saveProfileBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('accName').value.trim();
   const phone = document.getElementById('accPhone').value.trim();
+  const email = document.getElementById('accEmail').value.trim();
   const address = document.getElementById('accAddress').value.trim();
   if(!name || !phone){ toast('يرجى إدخال الاسم ورقم الهاتف'); return; }
   try{
-    const updated = await api.patch('/api/customers/me', {name, phone, address}, {auth:'customer'});
+    const updated = await api.patch('/api/customers/me', {name, phone, email, address}, {auth:'customer'});
     Object.assign(currentCustomer(), updated);
     renderProfile();
     toast('تم حفظ بياناتك');
