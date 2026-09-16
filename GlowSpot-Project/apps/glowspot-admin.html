@@ -121,6 +121,11 @@ input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px 
         <div id="centersList"></div>
       </section>
 
+      <section id="viewIndependents">
+        <p class="section-title">الخبيرات المستقلات (بلا مركز)</p>
+        <div id="independentsList"></div>
+      </section>
+
       <section id="viewUsers">
         <p class="section-title">العميلات المسجّلات</p>
         <div id="usersList"></div>
@@ -166,6 +171,7 @@ input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px 
 <script>
 const api = window.GlowSpotAPI;
 const COLORS = ['#6B1F35','#C98CA7','#C9A227','#8C5B70','#9B3B49','#4E1526'];
+const DEPARTMENT_LABELS = {hair:'شعر', makeup:'مكياج', nails:'أظافر', henna:'حنة', spa:'سبا', steam:'حمام بخار', beauty:'عناية وجمال', cupping:'حجامة'};
 
 let centers=[], experts=[], packages=[], bookings=[], customers=[], reviews=[];
 let activeTab = 'overview';
@@ -229,6 +235,7 @@ document.getElementById('gateBtn').addEventListener('click', async ()=>{
 const TABS = [
   {id:'overview', label:'نظرة عامة'},
   {id:'centers', label:'المراكز'},
+  {id:'independents', label:'الخبيرات المستقلات'},
   {id:'users', label:'المستخدمات'},
   {id:'bookings', label:'الحجوزات'},
   {id:'reviews', label:'التقييمات'},
@@ -243,12 +250,13 @@ function renderTabs(){
 function showTab(id){
   activeTab = id;
   renderTabs();
-  ['overview','centers','users','bookings','reviews','analytics'].forEach(v=>{
+  ['overview','centers','independents','users','bookings','reviews','analytics'].forEach(v=>{
     document.getElementById('view'+v.charAt(0).toUpperCase()+v.slice(1)).classList.remove('visible');
   });
   document.getElementById('view'+id.charAt(0).toUpperCase()+id.slice(1)).classList.add('visible');
   if(id==='overview') renderOverview();
   if(id==='centers') renderCentersList();
+  if(id==='independents') renderIndependents();
   if(id==='users') renderUsers();
   if(id==='bookings') renderBookingsList();
   if(id==='reviews') renderReviews();
@@ -264,11 +272,16 @@ function renderOverview(){
     <div class="stat-card"><div class="stat-num">${activeBookings.length}</div><div class="stat-label">إجمالي الحجوزات</div></div>
     <div class="stat-card"><div class="stat-num">${estimatedRevenue().toFixed(0)} د.ل</div><div class="stat-label">إيرادات الباقات (تقديري)</div></div>
   `;
-  const pending = centers.filter(c=>c.status==='pending');
+  const pendingCenters = centers.filter(c=>c.status==='pending');
+  const pendingIndependents = experts.filter(e=>!e.centerId && e.status==='pending');
   const wrap = document.getElementById('pendingList');
-  if(pending.length===0){ wrap.innerHTML = '<div class="empty-state">لا توجد مراكز بانتظار المراجعة حالياً 🎉</div>'; return; }
-  wrap.innerHTML = pending.map(centerCardHtml).join('');
+  if(pendingCenters.length===0 && pendingIndependents.length===0){
+    wrap.innerHTML = '<div class="empty-state">لا توجد مراكز أو خبيرات بانتظار المراجعة حالياً 🎉</div>';
+    return;
+  }
+  wrap.innerHTML = pendingCenters.map(centerCardHtml).join('') + pendingIndependents.map(independentCardHtml).join('');
   bindCenterActions(wrap);
+  bindIndependentActions(wrap);
 }
 
 function estimatedRevenue(){
@@ -366,6 +379,77 @@ function renderCentersList(){
   bindCenterActions(wrap);
 }
 
+/* ---------------- INDEPENDENT EXPERTS ---------------- */
+function independentCardHtml(e){
+  const badgeClass = e.status==='approved' ? 'approved' : e.status==='disabled' ? 'disabled' : 'pending';
+  const badgeLabel = e.status==='approved' ? 'مفعّلة' : e.status==='disabled' ? 'معطّلة' : 'قيد المراجعة';
+  let actions = '';
+  if(e.status==='pending'){
+    actions = `<button class="act-btn act-approve" data-ind-approve="${e.id}">✅ قبول</button><button class="act-btn act-reject" data-ind-reject="${e.id}">❌ رفض</button>`;
+  } else if(e.status==='approved'){
+    actions = `<button class="act-btn act-toggle" data-ind-disable="${e.id}">🔒 تعطيل</button>`;
+  } else if(e.status==='disabled'){
+    actions = `<button class="act-btn act-approve" data-ind-enable="${e.id}">✅ إعادة تفعيل</button>`;
+  }
+  return `
+    <div class="card">
+      <div class="top">
+        <div>
+          <div class="t1">${e.name}</div>
+          <div class="t2">${DEPARTMENT_LABELS[e.department]||e.department} — ${e.specialty||''} &nbsp;·&nbsp; 📍 ${e.city||''} &nbsp;·&nbsp; ⭐ ${(e.rating||0).toFixed(1)}</div>
+          <div class="t2">📱 ${e.phone}</div>
+        </div>
+        <span class="badge ${badgeClass}">${badgeLabel}</span>
+      </div>
+      <div class="actions">${actions}<button class="act-btn act-neutral" data-ind-reset-pw="${e.id}">🔑 إعادة تعيين كلمة المرور</button></div>
+    </div>`;
+}
+function bindIndependentActions(wrap){
+  wrap.querySelectorAll('[data-ind-approve]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    try{
+      const ex = experts.find(x=>x.id===btn.dataset.indApprove);
+      await api.patch('/api/experts/'+ex.id+'/status', {status:'approved'}, {auth:'admin'});
+      ex.status='approved'; toast('تم قبول الخبيرة'); showTab(activeTab);
+    }catch(e){ toast('تعذر تنفيذ الإجراء'); }
+  }));
+  wrap.querySelectorAll('[data-ind-reject]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    try{
+      await api.del('/api/experts/'+btn.dataset.indReject, {auth:'admin'});
+      experts = experts.filter(x=>x.id!==btn.dataset.indReject);
+      toast('تم رفض الخبيرة وحذف حسابها'); showTab(activeTab);
+    }catch(e){ toast('تعذر تنفيذ الإجراء'); }
+  }));
+  wrap.querySelectorAll('[data-ind-disable]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    try{
+      const ex = experts.find(x=>x.id===btn.dataset.indDisable);
+      await api.patch('/api/experts/'+ex.id+'/status', {status:'disabled'}, {auth:'admin'});
+      ex.status='disabled'; toast('تم تعطيل الخبيرة'); showTab(activeTab);
+    }catch(e){ toast('تعذر تنفيذ الإجراء'); }
+  }));
+  wrap.querySelectorAll('[data-ind-enable]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    try{
+      const ex = experts.find(x=>x.id===btn.dataset.indEnable);
+      await api.patch('/api/experts/'+ex.id+'/status', {status:'approved'}, {auth:'admin'});
+      ex.status='approved'; toast('تم إعادة تفعيل الخبيرة'); showTab(activeTab);
+    }catch(e){ toast('تعذر تنفيذ الإجراء'); }
+  }));
+  wrap.querySelectorAll('[data-ind-reset-pw]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const ex = experts.find(x=>x.id===btn.dataset.indResetPw);
+    if(!confirm(`إعادة تعيين كلمة مرور "${ex.name}"؟ كلمة مرورها الحالية ستتوقف عن العمل فوراً.`)) return;
+    try{
+      const { password } = await api.post('/api/experts/'+ex.id+'/reset-password', {}, {auth:'admin'});
+      prompt('كلمة المرور الجديدة لـ "'+ex.name+'" — انسخيها وأرسليها لها (لن تظهر مرة أخرى):', password);
+    }catch(e){ toast('تعذر إعادة تعيين كلمة المرور'); }
+  }));
+}
+function renderIndependents(){
+  const wrap = document.getElementById('independentsList');
+  const list = experts.filter(e=>!e.centerId);
+  if(list.length===0){ wrap.innerHTML='<div class="empty-state">لا توجد خبيرات مستقلات مسجّلات بعد</div>'; return; }
+  wrap.innerHTML = list.map(independentCardHtml).join('');
+  bindIndependentActions(wrap);
+}
+
 /* ---------------- USERS ---------------- */
 function renderUsers(){
   const wrap = document.getElementById('usersList');
@@ -408,7 +492,7 @@ function renderBookingsList(){
     return `<div class="card">
       <div class="top">
         <div>
-          <div class="t1">${b.centerName}</div>
+          <div class="t1">${b.centerName || '🏠 خبيرة مستقلة'}</div>
           <div class="t2">${b.service}${b.expertName?' · '+b.expertName:''} · ${b.customerName} · ${b.date} ${b.time}</div>
         </div>
         <span class="badge ${meta.cls}">${meta.label}</span>
@@ -431,7 +515,7 @@ function renderReviews(){
     return `<div class="card">
       <div class="top">
         <div>
-          <div class="t1">${c?c.name:'مركز محذوف'}${e?' · '+e.name:''}</div>
+          <div class="t1">${c?c.name:(r.centerId?'مركز محذوف':'🏠 خبيرة مستقلة')}${e?' · '+e.name:''}</div>
           <div class="t2">${r.customerName||'عميلة'} ${r.comment ? '— '+r.comment : ''}</div>
         </div>
         <span class="badge approved">⭐ ${r.rating}</span>
@@ -464,7 +548,7 @@ function renderAnalytics(){
   barChart('cityChart', cityCounts, 6);
 
   const centerCounts = {};
-  activeBookings.forEach(b=>{ centerCounts[b.centerName] = (centerCounts[b.centerName]||0)+1; });
+  activeBookings.forEach(b=>{ if(b.centerName) centerCounts[b.centerName] = (centerCounts[b.centerName]||0)+1; });
   barChart('centerChart', centerCounts, 5);
 
   const serviceCounts = {};

@@ -217,6 +217,30 @@ app.post('/api/auth/expert/login', ar(async (req, res) => {
   res.json({ token, expert: expertPublic(row) });
 }));
 
+/* Self-service signup for independent experts — a freelancer with no center
+   who serves customers at their own home. A center-created expert instead
+   gets her phone/password handed to her by the center (POST /api/experts),
+   which is already vetted by admin when it approved the center; an
+   independent expert isn't vetted by anyone yet, so she starts 'pending'
+   and only appears to customers once admin approves her. */
+app.post('/api/auth/expert/signup', ar(async (req, res) => {
+  const b = req.body || {};
+  if (!b.name || !b.phone || !b.password || !b.department || !b.city) return res.status(400).json({ error: 'missing_fields' });
+  if (await expertsStmt.byPhone.get(b.phone)) return res.status(409).json({ error: 'phone_taken' });
+  const COLORS = ['#6B1F35', '#C98CA7', '#C9A227', '#8C5B70', '#9B3B49', '#4E1526'];
+  const row = {
+    id: uid('e'), centerId: null, department: b.department, name: String(b.name).trim(),
+    specialty: (b.specialty || '').trim() || 'خدمات عامة', rating: 5.0, available: true, homeService: true,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    phone: String(b.phone).trim(), password_hash: bcrypt.hashSync(b.password, 10),
+    servicePrices: {}, serviceDurations: {}, workingHours: {}, leaveRequests: [], clientNotes: {},
+    status: 'pending', about: (b.about || '').trim(), city: String(b.city).trim(), paymentMethods: {}
+  };
+  await expertsStmt.insert.run(row);
+  const token = signToken({ role: 'expert', id: row.id, centerId: null });
+  res.json({ token, expert: expertPublic(row) });
+}));
+
 app.post('/api/auth/admin/login', ar(async (req, res) => {
   const { password } = req.body || {};
   if (password !== ADMIN_PASSWORD) return res.status(401).json({ error: 'invalid_credentials' });
@@ -268,46 +292,67 @@ app.get('/api/bookings/mine', requireAuth('customer'), ar(async (req, res) => {
 
 app.post('/api/bookings', requireAuth('customer'), ar(async (req, res) => {
   const body = req.body || {};
-  const center = await getCenter(body.centerId);
-  if (!center) return res.status(404).json({ error: 'center_not_found' });
 
+  let center = null, centerId = null, centerName = null;
   let department = body.department || null;
   let service = body.service || null;
   let expertId = null, expertName = null, duration = 60, price = null, status = 'pending';
+  let serviceLocation = body.serviceLocation || 'center';
 
-  if (body.mode === 'package') {
-    const pkg = await packagesStmt.byId.get(body.pkgId);
-    if (!pkg || pkg.centerId !== center.id) return res.status(404).json({ error: 'package_not_found' });
-    department = 'package'; service = pkg.name; price = pkg.price; duration = 60; status = 'confirmed';
+  if (body.mode === 'independent') {
+    // A freelancer with no center — always serves at the customer's home,
+    // so there's no location choice and no center to look up.
+    const ex = await getExpert(body.expertId);
+    if (!ex || ex.centerId || ex.status !== 'approved') return res.status(404).json({ error: 'expert_not_found' });
+    if (!service || !body.date || !body.time) return res.status(400).json({ error: 'missing_fields' });
+    if (!(body.homeAddress || '').trim()) return res.status(400).json({ error: 'missing_address' });
+    department = ex.department;
+    expertId = ex.id; expertName = ex.name;
+    duration = ex.serviceDurations[service] || 60;
+    const p = ex.servicePrices[service];
+    price = p > 0 ? p : null;
+    serviceLocation = 'home';
+    const startMin = timeToMin(body.time);
+    if (await hasConflict(ex.id, body.date, startMin, duration)) return res.status(409).json({ error: 'slot_taken' });
   } else {
-    if (!department || !service || !body.date || !body.time) return res.status(400).json({ error: 'missing_fields' });
-    const deptExperts = (await expertsStmt.byCenter.all(center.id)).filter((e) => e.department === department);
+    center = await getCenter(body.centerId);
+    if (!center) return res.status(404).json({ error: 'center_not_found' });
+    centerId = center.id; centerName = center.name;
 
-    if (body.expertId === 'any') {
-      const durGuess = deptExperts.length ? (deptExperts[0].serviceDurations[service] || 60) : 60;
-      const startMin = timeToMin(body.time);
-      let free = null;
-      for (const e of deptExperts) {
-        if (!e.available) continue;
-        if (body.serviceLocation === 'home' && !e.homeService) continue;
-        const dur = e.serviceDurations[service] || durGuess;
-        if (!(await hasConflict(e.id, body.date, startMin, dur))) { free = e; break; }
+    if (body.mode === 'package') {
+      const pkg = await packagesStmt.byId.get(body.pkgId);
+      if (!pkg || pkg.centerId !== center.id) return res.status(404).json({ error: 'package_not_found' });
+      department = 'package'; service = pkg.name; price = pkg.price; duration = 60; status = 'confirmed';
+    } else {
+      if (!department || !service || !body.date || !body.time) return res.status(400).json({ error: 'missing_fields' });
+      const deptExperts = (await expertsStmt.byCenter.all(center.id)).filter((e) => e.department === department);
+
+      if (body.expertId === 'any') {
+        const durGuess = deptExperts.length ? (deptExperts[0].serviceDurations[service] || 60) : 60;
+        const startMin = timeToMin(body.time);
+        let free = null;
+        for (const e of deptExperts) {
+          if (!e.available) continue;
+          if (body.serviceLocation === 'home' && !e.homeService) continue;
+          const dur = e.serviceDurations[service] || durGuess;
+          if (!(await hasConflict(e.id, body.date, startMin, dur))) { free = e; break; }
+        }
+        if (!free) return res.status(409).json({ error: 'no_expert_available' });
+        expertId = free.id; expertName = free.name;
+        duration = free.serviceDurations[service] || durGuess;
+        const p = free.servicePrices[service];
+        price = p > 0 ? p : null;
+      } else if (body.expertId) {
+        const ex = await getExpert(body.expertId);
+        if (!ex || ex.centerId !== center.id) return res.status(404).json({ error: 'expert_not_found' });
+        if (body.serviceLocation === 'home' && !ex.homeService) return res.status(400).json({ error: 'expert_no_home_service' });
+        expertId = ex.id; expertName = ex.name;
+        duration = ex.serviceDurations[service] || 60;
+        const p = ex.servicePrices[service];
+        price = p > 0 ? p : null;
+        const startMin = timeToMin(body.time);
+        if (await hasConflict(ex.id, body.date, startMin, duration)) return res.status(409).json({ error: 'slot_taken' });
       }
-      if (!free) return res.status(409).json({ error: 'no_expert_available' });
-      expertId = free.id; expertName = free.name;
-      duration = free.serviceDurations[service] || durGuess;
-      const p = free.servicePrices[service];
-      price = p > 0 ? p : null;
-    } else if (body.expertId) {
-      const ex = await getExpert(body.expertId);
-      if (!ex || ex.centerId !== center.id) return res.status(404).json({ error: 'expert_not_found' });
-      if (body.serviceLocation === 'home' && !ex.homeService) return res.status(400).json({ error: 'expert_no_home_service' });
-      expertId = ex.id; expertName = ex.name;
-      duration = ex.serviceDurations[service] || 60;
-      const p = ex.servicePrices[service];
-      price = p > 0 ? p : null;
-      const startMin = timeToMin(body.time);
-      if (await hasConflict(ex.id, body.date, startMin, duration)) return res.status(409).json({ error: 'slot_taken' });
     }
   }
 
@@ -317,9 +362,9 @@ app.post('/api/bookings', requireAuth('customer'), ar(async (req, res) => {
 
   // Center-run service discounts apply automatically whenever one matches —
   // the customer doesn't have to enter a code, and the price shown while
-  // booking is exactly what she pays.
+  // booking is exactly what she pays. Independent experts don't have offers.
   let originalPrice = null;
-  if (price != null && body.mode !== 'package') {
+  if (price != null && center && body.mode !== 'package') {
     const offer = await offersStmt.activeFor.get(center.id, department, service);
     if (offer) {
       originalPrice = price;
@@ -354,12 +399,12 @@ app.post('/api/bookings', requireAuth('customer'), ar(async (req, res) => {
   }
 
   const row = {
-    id: uid('bk'), centerId: center.id, centerName: center.name,
+    id: uid('bk'), centerId, centerName,
     department, service, expertId, expertName,
     customerId: req.auth.id, customerName, phone,
     date: body.date, time: body.time, duration, price, commissionAmount, netAmount, status,
-    serviceLocation: body.serviceLocation || 'center',
-    homeAddress: body.serviceLocation === 'home' ? (body.homeAddress || '').trim() : null,
+    serviceLocation,
+    homeAddress: serviceLocation === 'home' ? (body.homeAddress || '').trim() : null,
     declineReason: null, alternatives: [],
     originalPrice, walletPointsRedeemed
   };
@@ -555,19 +600,31 @@ app.post('/api/experts', requireAuth('center'), ar(async (req, res) => {
   res.json(expertPublic(row));
 }));
 
-app.delete('/api/experts/:id', requireAuth('center'), ar(async (req, res) => {
+app.delete('/api/experts/:id', requireAuth('center', 'admin'), ar(async (req, res) => {
   const ex = await getExpert(req.params.id);
-  if (!ex || ex.centerId !== req.auth.centerId) return res.status(404).json({ error: 'not_found' });
+  if (!ex) return res.status(404).json({ error: 'not_found' });
+  if (req.auth.role === 'center' && ex.centerId !== req.auth.centerId) return res.status(404).json({ error: 'not_found' });
   await expertsStmt.delete.run(ex.id);
   res.json({ ok: true });
 }));
 
-app.post('/api/experts/:id/reset-password', requireAuth('center'), ar(async (req, res) => {
+app.post('/api/experts/:id/reset-password', requireAuth('center', 'admin'), ar(async (req, res) => {
   const ex = await getExpert(req.params.id);
-  if (!ex || ex.centerId !== req.auth.centerId) return res.status(404).json({ error: 'not_found' });
+  if (!ex) return res.status(404).json({ error: 'not_found' });
+  if (req.auth.role === 'center' && ex.centerId !== req.auth.centerId) return res.status(404).json({ error: 'not_found' });
   const password = genTempPassword();
   await expertsStmt.updatePassword.run(bcrypt.hashSync(password, 10), ex.id);
   res.json({ password });
+}));
+
+/* Admin approval for independent experts — mirrors PATCH /api/centers/:id/status. */
+app.patch('/api/experts/:id/status', requireAuth('admin'), ar(async (req, res) => {
+  const { status } = req.body || {};
+  if (!['approved', 'pending', 'disabled'].includes(status)) return res.status(400).json({ error: 'invalid_status' });
+  const ex = await getExpert(req.params.id);
+  if (!ex) return res.status(404).json({ error: 'not_found' });
+  await expertsStmt.updateStatus.run(status, ex.id);
+  res.json(expertPublic(await getExpert(ex.id)));
 }));
 
 app.post('/api/packages', requireAuth('center'), ar(async (req, res) => {
@@ -611,19 +668,31 @@ app.patch('/api/experts/:id', requireAuth('expert', 'center'), ar(async (req, re
       categories.every((k) => typeof k === 'string' && k.length > 0 && k.length <= 30 && isValidPhotoList(b.portfolio[k], 12));
     if (!validShape) return res.status(400).json({ error: 'invalid_portfolio' });
   }
+  // An independent expert has no center to gate her department/specialty/city
+  // or hold payment methods for her — she manages all of that herself. A
+  // center-linked expert can't touch these through this endpoint at all.
+  const isIndependent = current.centerId === null;
   const merged = {
     available: b.available !== undefined ? !!b.available : !!current.available,
-    homeService: b.homeService !== undefined ? !!b.homeService : !!current.homeService,
+    // Home visits are her whole business, not an option — always on.
+    homeService: isIndependent ? true : (b.homeService !== undefined ? !!b.homeService : !!current.homeService),
     servicePrices: b.servicePrices !== undefined ? b.servicePrices : current.servicePrices,
     serviceDurations: b.serviceDurations !== undefined ? b.serviceDurations : current.serviceDurations,
     workingHours: b.workingHours !== undefined ? b.workingHours : current.workingHours,
     leaveRequests: b.leaveRequests !== undefined ? b.leaveRequests : current.leaveRequests,
     clientNotes: b.clientNotes !== undefined ? b.clientNotes : current.clientNotes,
-    portfolio: b.portfolio !== undefined ? b.portfolio : current.portfolio
+    portfolio: b.portfolio !== undefined ? b.portfolio : current.portfolio,
+    department: (isIndependent && b.department !== undefined) ? b.department : current.department,
+    specialty: (isIndependent && b.specialty !== undefined) ? String(b.specialty).trim() : current.specialty,
+    city: (isIndependent && b.city !== undefined) ? String(b.city).trim() : current.city,
+    about: (isIndependent && b.about !== undefined) ? String(b.about).trim() : current.about,
+    paymentMethods: (isIndependent && b.paymentMethods !== undefined) ? b.paymentMethods : current.paymentMethods
   };
   await db.query(
-    'UPDATE experts SET available=$1, "homeService"=$2, "servicePrices"=$3, "serviceDurations"=$4, "workingHours"=$5, "leaveRequests"=$6, "clientNotes"=$7, portfolio=$8 WHERE id=$9',
-    [merged.available, merged.homeService, j(merged.servicePrices), j(merged.serviceDurations), j(merged.workingHours), j(merged.leaveRequests), j(merged.clientNotes), j(merged.portfolio), current.id]
+    `UPDATE experts SET available=$1, "homeService"=$2, "servicePrices"=$3, "serviceDurations"=$4, "workingHours"=$5, "leaveRequests"=$6, "clientNotes"=$7, portfolio=$8,
+     department=$9, specialty=$10, city=$11, about=$12, "paymentMethods"=$13 WHERE id=$14`,
+    [merged.available, merged.homeService, j(merged.servicePrices), j(merged.serviceDurations), j(merged.workingHours), j(merged.leaveRequests), j(merged.clientNotes), j(merged.portfolio),
+     merged.department, merged.specialty, merged.city, merged.about, j(merged.paymentMethods), current.id]
   );
   res.json(expertPublic(await getExpert(current.id)));
 }));

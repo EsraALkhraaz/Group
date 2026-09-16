@@ -35,7 +35,7 @@ async function initSchema() {
 
     CREATE TABLE IF NOT EXISTS experts (
       id TEXT PRIMARY KEY,
-      "centerId" TEXT NOT NULL,
+      "centerId" TEXT,
       department TEXT,
       name TEXT NOT NULL,
       specialty TEXT,
@@ -51,7 +51,11 @@ async function initSchema() {
       "leaveRequests" JSONB DEFAULT '[]',
       "clientNotes" JSONB DEFAULT '{}',
       portfolio JSONB DEFAULT '{}',
-      "pushSubscriptions" JSONB DEFAULT '[]'
+      "pushSubscriptions" JSONB DEFAULT '[]',
+      status TEXT DEFAULT 'approved',
+      about TEXT,
+      city TEXT,
+      "paymentMethods" JSONB DEFAULT '{}'
     );
 
     CREATE TABLE IF NOT EXISTS customers (
@@ -76,7 +80,7 @@ async function initSchema() {
 
     CREATE TABLE IF NOT EXISTS bookings (
       id TEXT PRIMARY KEY,
-      "centerId" TEXT NOT NULL,
+      "centerId" TEXT,
       "centerName" TEXT,
       department TEXT,
       service TEXT,
@@ -196,6 +200,17 @@ async function initSchema() {
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS "walletPoints" INTEGER DEFAULT 0`);
   await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "originalPrice" REAL`);
   await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "walletPointsRedeemed" INTEGER DEFAULT 0`);
+
+  // Independent experts: a freelancer who serves customers at their own home
+  // and isn't affiliated with any center. Both centerId columns need to
+  // become nullable for this (a fresh install already gets that from the
+  // CREATE TABLE above — DROP NOT NULL is a no-op there).
+  await pool.query(`ALTER TABLE experts ALTER COLUMN "centerId" DROP NOT NULL`);
+  await pool.query(`ALTER TABLE bookings ALTER COLUMN "centerId" DROP NOT NULL`);
+  await pool.query(`ALTER TABLE experts ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved'`);
+  await pool.query(`ALTER TABLE experts ADD COLUMN IF NOT EXISTS about TEXT`);
+  await pool.query(`ALTER TABLE experts ADD COLUMN IF NOT EXISTS city TEXT`);
+  await pool.query(`ALTER TABLE experts ADD COLUMN IF NOT EXISTS "paymentMethods" JSONB DEFAULT '{}'`);
 }
 
 function uid(prefix) {
@@ -273,17 +288,22 @@ const expertsStmt = {
   byId: { get: (id) => queryOne('SELECT * FROM experts WHERE id = $1', [id]) },
   byPhone: { get: (phone) => queryOne('SELECT * FROM experts WHERE phone = $1', [phone]) },
   byCenter: { all: (centerId) => queryAll('SELECT * FROM experts WHERE "centerId" = $1', [centerId]) },
+  /* Independent experts (no center) — approved centers pre-vet their own
+     hires, but a freelancer signing up herself hasn't been vetted by anyone,
+     so she goes live only once admin approves her. */
+  independent: { all: () => queryAll('SELECT * FROM experts WHERE "centerId" IS NULL') },
   insert: {
     run: (e) => pool.query(
-      `INSERT INTO experts (id,"centerId",department,name,specialty,rating,available,"homeService",color,phone,password_hash,"servicePrices","serviceDurations","workingHours","leaveRequests","clientNotes",portfolio)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-      [e.id, e.centerId, e.department, e.name, e.specialty, e.rating, e.available, e.homeService, e.color, e.phone, e.password_hash, j(e.servicePrices), j(e.serviceDurations), j(e.workingHours), j(e.leaveRequests), j(e.clientNotes), j(e.portfolio || {})]
+      `INSERT INTO experts (id,"centerId",department,name,specialty,rating,available,"homeService",color,phone,password_hash,"servicePrices","serviceDurations","workingHours","leaveRequests","clientNotes",portfolio,status,about,city,"paymentMethods")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+      [e.id, e.centerId, e.department, e.name, e.specialty, e.rating, e.available, e.homeService, e.color, e.phone, e.password_hash, j(e.servicePrices), j(e.serviceDurations), j(e.workingHours), j(e.leaveRequests), j(e.clientNotes), j(e.portfolio || {}), e.status || 'approved', e.about || null, e.city || null, j(e.paymentMethods || {})]
     )
   },
   delete: { run: (id) => pool.query('DELETE FROM experts WHERE id=$1', [id]) },
   updateRating: { run: (rating, id) => pool.query('UPDATE experts SET rating=$1 WHERE id=$2', [rating, id]) },
   updatePassword: { run: (passwordHash, id) => pool.query('UPDATE experts SET password_hash=$1 WHERE id=$2', [passwordHash, id]) },
-  updatePushSubscriptions: { run: (subs, id) => pool.query('UPDATE experts SET "pushSubscriptions"=$1 WHERE id=$2', [j(subs), id]) }
+  updatePushSubscriptions: { run: (subs, id) => pool.query('UPDATE experts SET "pushSubscriptions"=$1 WHERE id=$2', [j(subs), id]) },
+  updateStatus: { run: (status, id) => pool.query('UPDATE experts SET status=$1 WHERE id=$2', [status, id]) }
 };
 
 const customersStmt = {

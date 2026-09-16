@@ -23,6 +23,20 @@ h1,h2,h3,.brand{font-family:'Cairo',sans-serif;}
 section{display:none;} section.visible{display:block;}
 
 #viewGate{padding:40px 24px;}
+.auth-tabs{display:flex;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:4px;margin-bottom:20px;}
+.auth-tabs button{flex:1;padding:10px;border:none;background:transparent;font-weight:700;font-size:13px;color:var(--muted);border-radius:11px;cursor:pointer;font-family:'Tajawal',sans-serif;}
+.auth-tabs button.active{background:var(--maroon-dark);color:#fff;}
+select{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;font-family:'Tajawal',sans-serif;font-size:13.5px;background:#fff;color:var(--ink);}
+.status-banner{border-radius:14px;padding:12px 14px;font-size:12.5px;font-weight:700;margin-bottom:14px;}
+.status-banner.pending{background:#FBEBC7;color:#8A6D0E;}
+.status-banner.approved{background:#E4EEDD;color:var(--ok);}
+.status-banner.disabled{background:#F3DEDC;color:var(--danger);}
+.toggle-pill{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:#fff;border-radius:13px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;margin:0 4px 8px 0;color:var(--ink);}
+.toggle-pill.active{background:var(--maroon-dark);border-color:var(--maroon-dark);color:#fff;}
+.list-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
+.list-row:last-child{border-bottom:none;}
+.list-row .main{flex:1;min-width:0;}
+.list-row .main .t1{font-weight:700;font-size:13.5px;}
 .gate-brand{font-family:'Playfair Display',serif;font-size:30px;color:var(--maroon-dark);text-align:center;margin:20px 0 4px;}
 .gate-sub{font-size:13px;color:var(--muted);text-align:center;margin-bottom:26px;}
 .gate-note{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.6;text-align:center;}
@@ -117,22 +131,48 @@ input,textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padd
   <section id="viewGate" class="visible">
     <p class="gate-brand">GlowSpot Staff</p>
     <p class="gate-sub">لوحة الخبيرة — لإدارة طلباتك ومواعيدك</p>
-    <label>رقم الهاتف</label>
-    <input id="staffPhone" type="tel" placeholder="09xxxxxxxx">
-    <label>كلمة المرور</label>
-    <input id="staffPassword" type="password" placeholder="••••••••">
-    <button class="confirm-btn" id="gateBtn">تسجيل الدخول</button>
-    <p class="gate-note">تحصلين على رقم هاتفك وكلمة مرورك من صاحبة المركز عند إضافتك للفريق. هذا نموذج تجريبي وليس نظام حماية حقيقي.</p>
-    <div class="demo-creds">
-      <strong>للدخول السريع (تجريبي) — كلمة المرور للجميع: expert123</strong><br>
-      0920000001 — سارة (شعر)<br>
-      0920000002 — مايا (مكياج)<br>
-      0920000003 — نورا (أظافر)<br>
-      0920000007 — آية (حنة)<br>
-      0920000004 — لينا (شعر، مركز ثاني)<br>
-      0920000005 — هدى (عناية بالبشرة)<br>
-      0920000006 — أمل (سبا)<br>
-      0920000008 — سلمى (حجامة)
+    <div class="auth-tabs">
+      <button id="staffTabLogin" class="active">تسجيل الدخول</button>
+      <button id="staffTabSignup">خبيرة مستقلة — حساب جديد</button>
+    </div>
+
+    <div id="staffLoginForm">
+      <label>رقم الهاتف</label>
+      <input id="staffPhone" type="tel" placeholder="09xxxxxxxx">
+      <label>كلمة المرور</label>
+      <input id="staffPassword" type="password" placeholder="••••••••">
+      <button class="confirm-btn" id="gateBtn">تسجيل الدخول</button>
+      <p class="gate-note">تحصلين على رقم هاتفك وكلمة مرورك من صاحبة المركز عند إضافتك للفريق، أو من حسابك الخاص إذا كنتِ خبيرة مستقلة. هذا نموذج تجريبي وليس نظام حماية حقيقي.</p>
+      <div class="demo-creds">
+        <strong>للدخول السريع (تجريبي) — كلمة المرور للجميع: expert123</strong><br>
+        0920000001 — سارة (شعر)<br>
+        0920000002 — مايا (مكياج)<br>
+        0920000003 — نورا (أظافر)<br>
+        0920000007 — آية (حنة)<br>
+        0920000004 — لينا (شعر، مركز ثاني)<br>
+        0920000005 — هدى (عناية بالبشرة)<br>
+        0920000006 — أمل (سبا)<br>
+        0920000008 — سلمى (حجامة)
+      </div>
+    </div>
+
+    <div id="staffSignupForm" class="hidden">
+      <p class="gate-note" style="margin-top:0;">لخبيرات مستقلات بلا مركز — تخدمين العميلات في منازلهن مباشرة. حسابك يدخل قيد مراجعة إدارة GlowSpot قبل ظهوره للعميلات.</p>
+      <label>اسمك الكامل</label>
+      <input id="signupName" placeholder="اسمك الكامل">
+      <label>رقم الهاتف</label>
+      <input id="signupPhone" type="tel" placeholder="09xxxxxxxx">
+      <label>كلمة المرور</label>
+      <input id="signupPassword" type="password" placeholder="كلمة مرور">
+      <label>مجال عملك</label>
+      <select id="signupDept"></select>
+      <label>تخصصك بالضبط</label>
+      <input id="signupSpecialty" placeholder="مثال: مكياج سهرة وعرايس">
+      <label>مدينتك</label>
+      <input id="signupCity" placeholder="مثال: بنغازي">
+      <label>نبذة عنك (اختياري)</label>
+      <textarea id="signupAbout" rows="3" placeholder="خبرتك، سنوات العمل، ما يميزك..."></textarea>
+      <button class="confirm-btn" id="signupBtn">إنشاء الحساب</button>
     </div>
   </section>
 
@@ -145,6 +185,7 @@ input,textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padd
 
     <main>
       <section id="viewHome">
+        <div id="statusBanner"></div>
         <div class="stat-grid" id="statGrid"></div>
         <p class="section-title">طلبات جديدة</p>
         <div id="requestsList"></div>
@@ -168,6 +209,22 @@ input,textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padd
       </section>
 
       <section id="viewAvailability">
+        <div id="independentProfileSection" class="hidden">
+          <p class="section-title">ملفك كخبيرة مستقلة</p>
+          <div class="card">
+            <label style="margin-top:0;">مدينتك</label>
+            <input id="indCity" placeholder="مثال: بنغازي">
+            <label>تخصصك بالضبط</label>
+            <input id="indSpecialty" placeholder="مثال: مكياج سهرة وعرايس">
+            <label>نبذة عنك</label>
+            <textarea id="indAbout" rows="3" placeholder="خبرتك، سنوات العمل، ما يميزك..."></textarea>
+            <button class="confirm-btn" id="saveIndProfileBtn">حفظ الملف</button>
+          </div>
+          <p class="section-title" style="margin-top:24px;">طرق الدفع</p>
+          <p class="empty-state" style="margin:0 0 8px;">حدّدي لكل خدمة هل تُدفع نقداً فقط أو نقداً وبطاقة</p>
+          <div id="indPaymentMethods"></div>
+        </div>
+
         <p class="section-title">إشعارات الهاتف</p>
         <div class="card">
           <div class="t2" id="pushStatusText" style="margin-bottom:8px;">تحقّقي من حالة الإشعارات...</div>
@@ -333,6 +390,21 @@ document.getElementById('enablePushBtn').addEventListener('click', async ()=>{
 });
 
 /* ---------------- AUTH ---------------- */
+document.getElementById('signupDept').innerHTML = Object.keys(DEPARTMENTS).map(d=>`<option value="${d}">${DEPARTMENTS[d].icon} ${DEPARTMENTS[d].ar}</option>`).join('');
+
+document.getElementById('staffTabLogin').addEventListener('click', ()=>{
+  document.getElementById('staffTabLogin').classList.add('active');
+  document.getElementById('staffTabSignup').classList.remove('active');
+  document.getElementById('staffLoginForm').classList.remove('hidden');
+  document.getElementById('staffSignupForm').classList.add('hidden');
+});
+document.getElementById('staffTabSignup').addEventListener('click', ()=>{
+  document.getElementById('staffTabSignup').classList.add('active');
+  document.getElementById('staffTabLogin').classList.remove('active');
+  document.getElementById('staffSignupForm').classList.remove('hidden');
+  document.getElementById('staffLoginForm').classList.add('hidden');
+});
+
 document.getElementById('gateBtn').addEventListener('click', async ()=>{
   const phone = document.getElementById('staffPhone').value.trim();
   const password = document.getElementById('staffPassword').value;
@@ -343,6 +415,25 @@ document.getElementById('gateBtn').addEventListener('click', async ()=>{
     await enterApp();
   }catch(e){
     toast('رقم الهاتف أو كلمة المرور غير صحيحة');
+  }
+});
+document.getElementById('signupBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('signupName').value.trim();
+  const phone = document.getElementById('signupPhone').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  const department = document.getElementById('signupDept').value;
+  const specialty = document.getElementById('signupSpecialty').value.trim();
+  const city = document.getElementById('signupCity').value.trim();
+  const about = document.getElementById('signupAbout').value.trim();
+  if(!name || !phone || !password || !city){ toast('يرجى تعبئة الاسم ورقم الهاتف وكلمة المرور والمدينة'); return; }
+  try{
+    const result = await api.post('/api/auth/expert/signup', {name, phone, password, department, specialty, city, about});
+    api.setToken('expert', result.token);
+    staffSession = {expertId: result.expert.id};
+    await enterApp();
+    toast('تم إنشاء حسابك — بانتظار مراجعة إدارة GlowSpot');
+  }catch(e){
+    toast(e.error==='phone_taken' ? 'رقم الهاتف هذا مستخدم من قبل' : 'تعذر إنشاء الحساب');
   }
 });
 document.getElementById('logoutBtn').addEventListener('click', ()=>{
@@ -370,8 +461,9 @@ function renderHeader(){
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'صباح الخير' : hour < 18 ? 'مساء الخير' : 'مساء الخير';
   const c = centers.find(x=>x.id===ex.centerId);
+  const place = c ? c.name+' · ' : (ex.city ? '🏠 خبيرة مستقلة — '+ex.city+' · ' : '🏠 خبيرة مستقلة · ');
   document.getElementById('greetText').textContent = `${greeting}، ${ex.name} ✨`;
-  document.getElementById('greetSub').textContent = (c?c.name+' · ':'') + (DEPARTMENTS[ex.department]?DEPARTMENTS[ex.department].ar:'');
+  document.getElementById('greetSub').textContent = place + (DEPARTMENTS[ex.department]?DEPARTMENTS[ex.department].ar:'');
 }
 
 const TABS = [
@@ -438,6 +530,20 @@ function bindClientPanel(wrap){
 }
 
 function renderHome(){
+  const ex = me();
+  const banner = document.getElementById('statusBanner');
+  if(ex && !ex.centerId){
+    const map = {
+      pending: {cls:'pending', text:'⏳ حسابك قيد المراجعة من إدارة GlowSpot — سيظهر ملفك للعميلات فور القبول'},
+      approved: {cls:'approved', text:'✅ حسابك مفعّل ومرئي للعميلات'},
+      disabled: {cls:'disabled', text:'🔒 حسابك معطّل من إدارة GlowSpot'}
+    };
+    const info = map[ex.status] || map.pending;
+    banner.innerHTML = `<div class="status-banner ${info.cls}">${info.text}</div>`;
+  } else {
+    banner.innerHTML = '';
+  }
+
   const mine = myBookings();
   const pending = mine.filter(b=>b.status==='pending');
   const confirmedActive = mine.filter(b=>b.status==='confirmed'||b.status==='in_service');
@@ -546,8 +652,9 @@ async function declineBooking(id){
   const rangesOverlap = (aStart,aDur,bStartT,bDur)=> aStart < bStartT+bDur && bStartT < aStart+aDur;
   // NOTE: alternatives are suggested from this expert's own view of bookings and may be
   // slightly stale versus other experts' very latest bookings; the server re-validates
-  // any actual re-booking attempt against real conflicts regardless.
-  const alternatives = experts.filter(e=>e.id!==ex.id && e.centerId===ex.centerId && e.department===ex.department && e.available)
+  // any actual re-booking attempt against real conflicts regardless. Independent experts
+  // have no center peers to suggest — unrelated freelancers aren't interchangeable.
+  const alternatives = !ex.centerId ? [] : experts.filter(e=>e.id!==ex.id && e.centerId===ex.centerId && e.department===ex.department && e.available)
     .filter(e=>{
       const dur = (e.serviceDurations && e.serviceDurations[b.service]) || b.duration || 60;
       return !bookings.some(x=>x.expertId===e.id && x.date===b.date && x.status!=='cancelled' && x.status!=='declined'
@@ -632,22 +739,80 @@ function renderServices(){
 }
 
 /* ---------------- AVAILABILITY ---------------- */
+function renderIndependentProfile(ex, isIndependent){
+  const section = document.getElementById('independentProfileSection');
+  section.classList.toggle('hidden', !isIndependent);
+  if(!isIndependent) return;
+
+  document.getElementById('indCity').value = ex.city || '';
+  document.getElementById('indSpecialty').value = ex.specialty || '';
+  document.getElementById('indAbout').value = ex.about || '';
+  document.getElementById('saveIndProfileBtn').onclick = async ()=>{
+    const city = document.getElementById('indCity').value.trim();
+    const specialty = document.getElementById('indSpecialty').value.trim();
+    const about = document.getElementById('indAbout').value.trim();
+    if(!city){ toast('يرجى إدخال مدينتك'); return; }
+    try{
+      await api.patch('/api/experts/'+ex.id, {city, specialty, about}, {auth:'expert'});
+      ex.city = city; ex.specialty = specialty; ex.about = about;
+      toast('تم حفظ الملف');
+      renderHeader();
+    }catch(e){ toast('تعذر حفظ الملف'); }
+  };
+
+  const services = (DEPARTMENTS[ex.department] && DEPARTMENTS[ex.department].services) || [];
+  ex.paymentMethods = ex.paymentMethods || {};
+  const wrap = document.getElementById('indPaymentMethods');
+  wrap.innerHTML = services.map(s=>{
+    const pm = ex.paymentMethods[s] || 'cash';
+    return `<div class="list-row">
+      <div class="main"><div class="t1">${s}</div></div>
+      <div class="toggle-pill ${pm==='cash'?'active':''}" data-pm-cash="${s}" style="margin:0;">💵 كاش فقط</div>
+      <div class="toggle-pill ${pm==='cash_card'?'active':''}" data-pm-both="${s}" style="margin:0;">💳 كاش وبطاقة</div>
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('[data-pm-cash]').forEach(pill=>{
+    pill.addEventListener('click', async ()=>{
+      ex.paymentMethods[pill.dataset.pmCash] = 'cash';
+      try{ await api.patch('/api/experts/'+ex.id, {paymentMethods:ex.paymentMethods}, {auth:'expert'}); }catch(e){}
+      renderIndependentProfile(ex, isIndependent);
+    });
+  });
+  wrap.querySelectorAll('[data-pm-both]').forEach(pill=>{
+    pill.addEventListener('click', async ()=>{
+      ex.paymentMethods[pill.dataset.pmBoth] = 'cash_card';
+      try{ await api.patch('/api/experts/'+ex.id, {paymentMethods:ex.paymentMethods}, {auth:'expert'}); }catch(e){}
+      renderIndependentProfile(ex, isIndependent);
+    });
+  });
+}
+
 function renderAvailability(){
   const ex = me(); if(!ex) return;
+  const isIndependent = !ex.centerId;
 
   refreshPushStatus();
   const homeChip = document.getElementById('homeServiceToggle');
-  homeChip.classList.toggle('active', !!ex.homeService);
-  homeChip.textContent = ex.homeService ? '✓ مفعّلة' : 'غير مفعّلة';
-  homeChip.onclick = async ()=>{
-    const next = !ex.homeService;
-    try{
-      await api.patch('/api/experts/'+ex.id, {homeService: next}, {auth:'expert'});
-      ex.homeService = next;
-      toast(next ? 'تم تفعيل الخدمة المنزلية' : 'تم إيقاف الخدمة المنزلية');
-      renderAvailability();
-    }catch(e){ toast('تعذر حفظ التغيير'); }
-  };
+  if(isIndependent){
+    // Home visits are her whole business — always on, not a choice.
+    homeChip.classList.add('active');
+    homeChip.textContent = '✓ مفعّلة دائماً (خبيرة مستقلة)';
+    homeChip.onclick = null;
+  } else {
+    homeChip.classList.toggle('active', !!ex.homeService);
+    homeChip.textContent = ex.homeService ? '✓ مفعّلة' : 'غير مفعّلة';
+    homeChip.onclick = async ()=>{
+      const next = !ex.homeService;
+      try{
+        await api.patch('/api/experts/'+ex.id, {homeService: next}, {auth:'expert'});
+        ex.homeService = next;
+        toast(next ? 'تم تفعيل الخدمة المنزلية' : 'تم إيقاف الخدمة المنزلية');
+        renderAvailability();
+      }catch(e){ toast('تعذر حفظ التغيير'); }
+    };
+  }
+
+  renderIndependentProfile(ex, isIndependent);
 
   ex.workingHours = ex.workingHours || {};
   document.getElementById('hoursList').innerHTML = WEEKDAY_KEYS.map((k,i)=>{
@@ -781,12 +946,14 @@ document.getElementById('requestLeaveBtn').addEventListener('click', async ()=>{
   if(!date){ toast('يرجى اختيار تاريخ'); return; }
   ex.leaveRequests = ex.leaveRequests || [];
   if(ex.leaveRequests.some(l=>l.date===date)){ toast('يوجد طلب إجازة بهذا التاريخ مسبقاً'); return; }
-  const updated = ex.leaveRequests.concat([{date, status:'pending'}]);
+  // No center to approve an independent expert's leave — it's her own call.
+  const isIndependent = !ex.centerId;
+  const updated = ex.leaveRequests.concat([{date, status: isIndependent ? 'approved' : 'pending'}]);
   try{
     await api.patch('/api/experts/'+ex.id, {leaveRequests:updated}, {auth:'expert'});
     ex.leaveRequests = updated;
     document.getElementById('leaveDate').value = '';
-    toast('تم إرسال طلب الإجازة لصاحبة المركز');
+    toast(isIndependent ? 'تم تسجيل إجازتك' : 'تم إرسال طلب الإجازة لصاحبة المركز');
     renderAvailability();
   }catch(e){ toast('تعذر إرسال طلب الإجازة'); }
 });

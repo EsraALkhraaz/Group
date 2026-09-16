@@ -312,6 +312,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-col
         <p class="section-title">مراكز قريبة منك <span class="see-all" id="seeAllCenters">عرض الكل ›</span></p>
         <div class="h-scroll-row" id="topCentersRow"></div>
 
+        <div id="independentsSection">
+          <p class="section-title">🏠 خبيرات مستقلات — يخدمن في منزلك مباشرة</p>
+          <div class="h-scroll-row" id="independentsRow"></div>
+        </div>
+
         <p class="section-title">خدمات شائعة</p>
         <div class="circle-svc-row" id="circleSvcRow"></div>
 
@@ -358,6 +363,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-col
       <main>
         <div class="back-bar" id="backBtn">→ رجوع</div>
         <div id="centerDetailBody"></div>
+      </main>
+    </section>
+
+    <!-- INDEPENDENT EXPERT DETAIL -->
+    <section id="viewIndependentDetail">
+      <main>
+        <div class="back-bar" id="backFromIndependentDetail">→ رجوع</div>
+        <div id="independentDetailBody"></div>
       </main>
     </section>
 
@@ -583,7 +596,7 @@ function enterApp(){
   renderProfile();
   renderHeaderIdentity();
   renderCircleSvcRow();
-  renderTopCentersRow();
+  renderTopCentersRow(); renderIndependentsRow();
   renderCenterList();
   renderFavorites();
   renderAppointments();
@@ -608,7 +621,8 @@ function handleDeepLink(){
 
   const ex = experts.find(x=>x.id===expertId);
   if(!ex) return;
-  openBooking({centerId: ex.centerId, mode:'expert', expertId: ex.id});
+  if(ex.centerId) openBooking({centerId: ex.centerId, mode:'expert', expertId: ex.id});
+  else openIndependentBooking(ex.id);
 
   if(rebookExpertId){
     const last = myBookings().filter(b=>b.expertId===expertId && b.status==='completed')
@@ -659,7 +673,7 @@ document.getElementById('cityPillBtn').addEventListener('click', ()=>{
   const idx = cities.indexOf(activeCity);
   activeCity = cities[(idx+1) % cities.length];
   document.getElementById('cityPillLabel').textContent = activeCity==='الكل' ? 'قريبة مني' : activeCity;
-  renderTopCentersRow();
+  renderTopCentersRow(); renderIndependentsRow();
   renderCenterList();
 });
 
@@ -679,7 +693,7 @@ function renderCircleSvcRow(){
     el.addEventListener('click', ()=>{
       activeCatTab = el.dataset.d;
       renderCircleSvcRow();
-      renderTopCentersRow();
+      renderTopCentersRow(); renderIndependentsRow();
       renderCenterList();
     });
   });
@@ -714,6 +728,115 @@ function renderTopCentersRow(){
   wrap.querySelectorAll('.fav').forEach(btn=>{
     btn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleFavorite(btn.dataset.fav); });
   });
+}
+
+/* ---------------- INDEPENDENT EXPERTS (no center, home service only) ---------------- */
+function independentExperts(){
+  return experts.filter(e=>!e.centerId && e.status==='approved');
+}
+function renderIndependentsRow(){
+  const section = document.getElementById('independentsSection');
+  const wrap = document.getElementById('independentsRow');
+  let list = independentExperts().filter(e=> activeCity==='الكل' || e.city===activeCity);
+  if(searchQuery){
+    const q = searchQuery.toLowerCase();
+    list = list.filter(e=> e.name.toLowerCase().includes(q) || (e.specialty||'').toLowerCase().includes(q) || (DEPARTMENTS[e.department]&&DEPARTMENTS[e.department].ar.includes(q)));
+  }
+  list = list.slice().sort((a,b)=> b.rating-a.rating);
+  if(list.length===0){ section.classList.add('hidden'); return; }
+  section.classList.remove('hidden');
+  wrap.innerHTML = list.map(e=>`
+    <div class="h-center-card" data-id="${e.id}">
+      <div class="h-center-cover" style="background:${DEPARTMENTS[e.department]?DEPARTMENTS[e.department].tileColor:'linear-gradient(135deg,var(--rose),var(--maroon))'};justify-content:center;">
+        <button class="fav" data-fav-ex="${e.id}" style="position:absolute;top:7px;left:7px;">${isFavoritedExpert(e.id)?'♥':'♡'}</button>
+        <span class="rate" style="position:absolute;top:7px;right:7px;">⭐ ${e.rating.toFixed(1)}</span>
+        <div class="expert-pick-avatar" style="background:${e.color};width:44px;height:44px;font-size:16px;">${initial(e.name)}</div>
+      </div>
+      <div class="h-center-body">
+        <div class="h-center-name">${e.name}</div>
+        <div class="h-center-loc">📍 ${e.city||''}</div>
+        <span class="h-center-tag">🏠 ${e.specialty||DEPARTMENTS[e.department].ar}</span>
+      </div>
+    </div>`).join('');
+  wrap.querySelectorAll('.h-center-card').forEach(card=>{
+    card.addEventListener('click', (e)=>{
+      if(e.target.closest('.fav')) return;
+      openIndependentDetail(card.dataset.id);
+    });
+  });
+  wrap.querySelectorAll('.fav').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleFavoriteExpert(btn.dataset.favEx); renderIndependentsRow(); });
+  });
+}
+
+let currentIndependentId = null;
+function openIndependentDetail(expertId){
+  currentIndependentId = expertId;
+  showView('independentDetail');
+  renderIndependentDetail();
+}
+document.getElementById('backFromIndependentDetail').addEventListener('click', ()=> showView('explore'));
+
+function renderIndependentDetail(){
+  const ex = experts.find(x=>x.id===currentIndependentId);
+  const body = document.getElementById('independentDetailBody');
+  if(!ex){ body.innerHTML=''; return; }
+  const services = (DEPARTMENTS[ex.department] && DEPARTMENTS[ex.department].services) || [];
+  ex.servicePrices = ex.servicePrices || {};
+  body.innerHTML = `
+    <div class="detail-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="expert-pick-avatar" style="background:${ex.color};width:60px;height:60px;font-size:22px;flex-shrink:0;">${initial(ex.name)}</div>
+        <div>
+          <p class="center-name" style="margin:0;">${ex.name}</p>
+          <p class="center-loc" style="margin-top:3px;">🏠 خبيرة مستقلة — ${ex.city||''} &nbsp;·&nbsp; ⭐ ${ex.rating.toFixed(1)}</p>
+          <p class="center-loc" style="margin-top:2px;">${DEPARTMENTS[ex.department]?DEPARTMENTS[ex.department].ar:''} — ${ex.specialty||''}</p>
+        </div>
+      </div>
+      ${ex.about ? `<p class="about-text">${ex.about}</p>` : ''}
+      <button class="book-cta" id="bookIndependentBtn">احجزي في منزلك</button>
+    </div>
+
+    <p class="section-title">الخدمات والأسعار</p>
+    ${services.map(s=>{
+      const price = ex.servicePrices[s];
+      return `<div class="list-row">
+        <div class="main"><div class="t1">${s}</div></div>
+        <div style="font-size:12.5px;font-weight:700;color:var(--maroon);">${price>0 ? price+' د.ل' : 'يُحدَّد عند الحضور'}</div>
+      </div>`;
+    }).join('')}
+
+    <div id="independentReviewsSection"></div>
+  `;
+  document.getElementById('bookIndependentBtn').addEventListener('click', ()=> openIndependentBooking(ex.id));
+  renderIndependentReviews(ex);
+}
+function renderIndependentReviews(ex){
+  const wrap = document.getElementById('independentReviewsSection');
+  if(!wrap) return;
+  const exReviews = reviews.filter(r=>r.expertId===ex.id).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  if(exReviews.length===0){ wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `
+    <p class="section-title">آراء العميلات (${exReviews.length})</p>
+    ${exReviews.slice(0,15).map(r=>`<div class="review-card">
+      <div class="review-top">
+        <span class="review-name">${r.customerName||'عميلة'}</span>
+        <span class="review-stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>
+      </div>
+      ${r.comment ? `<div class="review-comment">${r.comment}</div>` : ''}
+    </div>`).join('')}
+  `;
+}
+function openIndependentBooking(expertId){
+  const ex = experts.find(x=>x.id===expertId);
+  const cust = currentCustomer();
+  bk = {
+    mode:'independent', expertId, department: ex ? ex.department : null, service:null, date:null, time:null,
+    custName: cust ? cust.name : '', custPhone: cust ? cust.phone : '',
+    serviceLocation:'home', homeAddress: cust ? (cust.address||'') : ''
+  };
+  document.getElementById('bookOverlay').classList.add('visible');
+  renderSheet();
 }
 
 /* ---------------- ALL PACKAGES ---------------- */
@@ -820,7 +943,7 @@ function renderFilterSheet(){
   document.getElementById('applyFiltersBtn').addEventListener('click', ()=>{
     document.getElementById('bookOverlay').classList.remove('visible');
     updateFilterIndicator();
-    renderTopCentersRow();
+    renderTopCentersRow(); renderIndependentsRow();
     renderCenterList();
   });
   document.getElementById('resetFiltersBtn').addEventListener('click', ()=>{
@@ -852,7 +975,7 @@ function matchesFilters(center){
   if(filterState.homeServiceOnly && !experts.some(e=>e.centerId===center.id && e.homeService)) return false;
   return true;
 }
-document.getElementById('searchInput').addEventListener('input', e=>{ searchQuery = e.target.value.trim(); renderTopCentersRow(); renderCenterList(); });
+document.getElementById('searchInput').addEventListener('input', e=>{ searchQuery = e.target.value.trim(); renderTopCentersRow(); renderIndependentsRow(); renderCenterList(); });
 
 function isFavorited(centerId){
   const cust = currentCustomer();
@@ -867,7 +990,7 @@ async function toggleFavorite(centerId){
   try{ await api.patch('/api/customers/me', {favorites: cust.favorites}, {auth:'customer'}); }catch(e){}
   renderCenterList();
   renderFavorites();
-  renderTopCentersRow();
+  renderTopCentersRow(); renderIndependentsRow();
   if(document.getElementById('viewCenterDetail').classList.contains('visible')) renderCenterDetail();
 }
 function isFavoritedExpert(expertId){
@@ -942,20 +1065,21 @@ function renderFavoriteExperts(){
   wrap.innerHTML = list.map(e=>{
     const c = centers.find(x=>x.id===e.centerId);
     return `
-    <div class="expert-card" data-open-center="${e.centerId}">
+    <div class="expert-card" data-expert-id="${e.id}" data-open-center="${e.centerId||''}">
       <div class="avatar" style="background:${e.color}">${initial(e.name)}<span class="pulse-dot ${e.available?'free':''}"></span></div>
       <div class="expert-info">
         <div class="expert-name">${e.name}</div>
-        <div class="expert-spec">${e.specialty}${c?' · '+c.name:''}</div>
+        <div class="expert-spec">${e.specialty}${c?' · '+c.name:(e.city?' · 🏠 '+e.city:'')}</div>
         <div class="expert-rating">⭐ ${e.rating.toFixed(1)} ${e.available ? '· متفرغة الآن' : '· مشغولة حالياً'}</div>
       </div>
       <button class="fav-btn" data-fav-expert="${e.id}" style="font-size:16px;">♥</button>
     </div>`;
   }).join('');
-  wrap.querySelectorAll('[data-open-center]').forEach(card=>{
+  wrap.querySelectorAll('[data-expert-id]').forEach(card=>{
     card.addEventListener('click', (e)=>{
       if(e.target.closest('[data-fav-expert]')) return;
-      openCenterDetail(card.dataset.openCenter);
+      if(card.dataset.openCenter) openCenterDetail(card.dataset.openCenter);
+      else openIndependentDetail(card.dataset.expertId);
     });
   });
   wrap.querySelectorAll('[data-fav-expert]').forEach(btn=>{
@@ -1211,6 +1335,9 @@ function renderSheet(){
   } else if(bk.mode==='expert'){
     const ex = experts.find(x=>x.id===bk.expertId);
     html += `<h3>حجز مع ${ex.name}</h3><p class="sub">${c.name} — ${DEPARTMENTS[ex.department].ar}</p>`;
+  } else if(bk.mode==='independent'){
+    const ex = experts.find(x=>x.id===bk.expertId);
+    html += `<h3>حجز مع ${ex.name}</h3><p class="sub">🏠 خبيرة مستقلة — ${DEPARTMENTS[ex.department].ar}</p>`;
   } else {
     html += `<h3>حجز موعد</h3><p class="sub">${c.name}</p>`;
   }
@@ -1228,11 +1355,12 @@ function renderSheet(){
     html += DEPARTMENTS[bk.department].services.map(s=>`<span class="pick-chip ${bk.service===s?'active':''}" data-s="${s}">${s}</span>`).join('');
     html += `</div>`;
     if(bk.service){
-      const pm = (c.paymentMethods && c.paymentMethods[bk.service]) || 'cash';
+      const pmSource = bk.mode==='independent' ? experts.find(x=>x.id===bk.expertId) : c;
+      const pm = (pmSource && pmSource.paymentMethods && pmSource.paymentMethods[bk.service]) || 'cash';
       html += `<p class="note">${pm==='cash_card' ? '💳 هذه الخدمة تُدفع نقداً أو بالبطاقة' : '💵 هذه الخدمة تُدفع نقداً فقط'}</p>`;
       if(bk.expertId && bk.expertId!=='any'){
         const price = getServicePrice(bk.expertId, bk.service);
-        const offer = findActiveOffer(bk.centerId, bk.department, bk.service);
+        const offer = bk.mode==='independent' ? null : findActiveOffer(bk.centerId, bk.department, bk.service);
         if(price!==null && offer){
           const discounted = Math.round(price*(1-offer.discountPercent/100)*100)/100;
           html += `<p class="note">💰 السعر: <s style="color:var(--muted);">${price} د.ل</s> ${discounted} د.ل <span class="offer-discount-badge" style="font-size:11px;padding:2px 8px;">خصم ${offer.discountPercent}%</span></p>`;
@@ -1269,7 +1397,12 @@ function renderSheet(){
   // picked, and only if that expert herself does home visits.
   const selectedExpertForHome = (bk.expertId && bk.expertId!=='any') ? experts.find(x=>x.id===bk.expertId) : null;
   const offersHomeService = !!(selectedExpertForHome && selectedExpertForHome.homeService);
-  if(readyForDate && offersHomeService){
+  if(bk.mode==='independent'){
+    // No location choice — an independent expert only ever serves at the customer's home.
+    if(readyForDate){
+      html += `<p class="step-label">عنوان منزلك بالتفصيل</p><input id="homeAddress" value="${bk.homeAddress||''}" placeholder="المدينة، المنطقة، أقرب معلم">`;
+    }
+  } else if(readyForDate && offersHomeService){
     html += `<p class="step-label">مكان الخدمة</p><div class="chip-row" id="locationChips">`;
     html += `<span class="pick-chip ${bk.serviceLocation!=='home'?'active':''}" data-loc="center">🏢 في المركز</span>`;
     html += `<span class="pick-chip ${bk.serviceLocation==='home'?'active':''}" data-loc="home">🏠 في المنزل</span>`;
@@ -1409,7 +1542,7 @@ async function confirmBooking(){
     bookings.push(booking);
     busyBookings.push({expertId:booking.expertId, date:booking.date, time:booking.time, duration:booking.duration, status:booking.status});
     document.getElementById('bookOverlay').classList.remove('visible');
-    toast(booking.status==='pending' ? 'تم إرسال طلب حجزك، بانتظار موافقة الخبيرة ✓' : 'تم تأكيد حجزك في ' + c.name + ' ✓');
+    toast(booking.status==='pending' ? 'تم إرسال طلب حجزك، بانتظار موافقة الخبيرة ✓' : 'تم تأكيد حجزك في ' + (c ? c.name : booking.expertName) + ' ✓');
     if(booking.walletPointsRedeemed>0){
       const cust = currentCustomer();
       if(cust) cust.walletPoints = Math.max(0, (cust.walletPoints||0) - booking.walletPointsRedeemed);
@@ -1451,7 +1584,7 @@ function renderAppointments(){
         <span class="appt-date">${d}/${m} — ${b.time} إلى ${endTime}</span>
         <span class="appt-status">${STATUS_LABELS[b.status]||b.status}</span>
       </div>
-      <div class="appt-meta">${b.centerName} · ${b.service}${b.expertName?' · '+b.expertName:''}${b.price ? ' · '+b.price+' د.ل' : ''}</div>
+      <div class="appt-meta">${b.centerName || '🏠 خبيرة مستقلة'} · ${b.service}${b.expertName?' · '+b.expertName:''}${b.price ? ' · '+b.price+' د.ل' : ''}</div>
       ${b.serviceLocation==='home' ? `<div class="appt-meta">🏠 خدمة منزلية — ${b.homeAddress}</div>` : ''}
       ${b.status==='declined' && b.declineReason ? `<div class="appt-meta">سبب عدم القبول: ${b.declineReason}</div>` : ''}
       ${b.status==='declined' && b.alternatives && b.alternatives.length ? `
@@ -1468,7 +1601,8 @@ function renderAppointments(){
     chip.addEventListener('click', ()=>{
       const [bookingId, expertId] = chip.dataset.rebook.split('::');
       const old = bookings.find(x=>x.id===bookingId);
-      if(old){ openBooking({centerId:old.centerId, mode:'expert', expertId}); }
+      if(old && old.centerId){ openBooking({centerId:old.centerId, mode:'expert', expertId}); }
+      else if(old){ openIndependentBooking(expertId); }
     });
   });
   wrap.querySelectorAll('.cancel-link[data-id]').forEach(btn=>{
@@ -1504,7 +1638,7 @@ function renderReviewSheet(b){
   const content = document.getElementById('sheetContent');
   content.innerHTML = `
     <h3>قيّمي تجربتك</h3>
-    <p class="sub">${b.centerName} · ${b.service}${b.expertName?' · '+b.expertName:''}</p>
+    <p class="sub">${b.centerName || '🏠 خبيرة مستقلة'} · ${b.service}${b.expertName?' · '+b.expertName:''}</p>
     ${REVIEW_CRITERIA.map(c=>`
       <p class="step-label">${c.label}</p>
       <div class="star-picker" data-criterion="${c.key}" style="font-size:24px;letter-spacing:6px;">
@@ -1543,8 +1677,9 @@ function checkUpcomingReminder(){
   const banner = document.getElementById('reminderBanner');
   const soon = myBookings().find(b => hoursUntil(b.date,b.time) <= 24 && hoursUntil(b.date,b.time) >= 0);
   if(soon){
-    banner.innerHTML = `<div class="reminder-banner">⏰ لديك موعد قريب: ${soon.service} في ${soon.centerName} الساعة ${soon.time}</div>`;
-    tryNotify('تذكير بموعدك في GlowSpot', soon.service + ' — ' + soon.centerName + ' الساعة ' + soon.time);
+    const place = soon.centerName || '🏠 خبيرة مستقلة';
+    banner.innerHTML = `<div class="reminder-banner">⏰ لديك موعد قريب: ${soon.service} في ${place} الساعة ${soon.time}</div>`;
+    tryNotify('تذكير بموعدك في GlowSpot', soon.service + ' — ' + place + ' الساعة ' + soon.time);
   } else {
     banner.innerHTML = '';
   }
@@ -1569,8 +1704,9 @@ function checkStatusChanges(freshBookings){
     const prev = seenBookingStatuses[b.id];
     if(prev !== undefined && prev !== b.status){
       if(b.status==='confirmed'){
-        toast('✅ تم تأكيد حجزك: ' + b.service + ' في ' + b.centerName);
-        tryNotify('تم تأكيد حجزك', b.service + ' — ' + b.centerName + ' الساعة ' + b.time);
+        const place = b.centerName || '🏠 خبيرة مستقلة';
+        toast('✅ تم تأكيد حجزك: ' + b.service + ' في ' + place);
+        tryNotify('تم تأكيد حجزك', b.service + ' — ' + place + ' الساعة ' + b.time);
       } else if(b.status==='declined'){
         toast('❌ لم يُقبل حجزك: ' + b.service + (b.declineReason ? ' — ' + b.declineReason : ''));
         tryNotify('لم يُقبل حجزك', b.service + ' — ' + (b.declineReason||''));
@@ -1657,7 +1793,7 @@ document.getElementById('changePasswordBtn').addEventListener('click', async ()=
 
 /* ---------------- NAV ---------------- */
 function showView(name){
-  ['explore','centerDetail','favorites','appointments','profile','allPackages','offers','wallet'].forEach(v=>{
+  ['explore','centerDetail','independentDetail','favorites','appointments','profile','allPackages','offers','wallet'].forEach(v=>{
     document.getElementById('view'+v.charAt(0).toUpperCase()+v.slice(1)).classList.remove('visible');
   });
   document.getElementById('view'+name.charAt(0).toUpperCase()+name.slice(1)).classList.add('visible');
