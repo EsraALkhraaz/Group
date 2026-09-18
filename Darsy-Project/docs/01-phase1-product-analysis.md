@@ -1,0 +1,1 @@
+$(cat /tmp/claude-0/-home-user/1c8e99da-c937-5bf8-bda0-3fc9e028e9af/scratchpad/darsy-phase1-product-analysis.md)
