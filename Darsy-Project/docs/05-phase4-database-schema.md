@@ -713,4 +713,4 @@ create index bookings_upcoming_idx       on bookings(starts_at)  where status = 
 
 ## 13. الخطوة التالية
 
-**Phase 5 — البنية التقنية:** اختيار إطار الخادم، تنظيم الطبقات (وحدة المال معزولة كما هي اليوم في `lib/money.js`)، المصادقة والجلسات، تخزين الملفات، واستراتيجية الهجرات (Migrations).
+✅ **أُنجزت:** Phase 5 — البنية التقنية في `06-phase5-technical-architecture.md`.
