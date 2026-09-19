@@ -457,4 +457,6 @@ awaiting_payment ──رفع إيصال──► payment_review ──تأكي�
 
 ## 10. الخطوة التالية
 
-**Phase 4 — مخطط قاعدة البيانات**: تحويل الكيانات الموصوفة هنا (Users, Teachers, Availability, Children, Bookings, Transactions, Payouts, Reviews, PlatformSettings, AuditLog) إلى جداول وعلاقات وفهارس، مع القيود التي تفرض قواعد العمل على مستوى البيانات لا الكود وحده.
+✅ **أُنجزت:** Phase 4 — مخطط قاعدة البيانات في `05-phase4-database-schema.md`: 27 جدولًا، والقواعد الحرجة مفروضة بقيود وفهارس ومشغّلات لا بالكود وحده.
+
+**التالي: Phase 5 — البنية التقنية.**
