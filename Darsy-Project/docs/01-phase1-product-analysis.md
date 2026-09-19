@@ -337,6 +337,8 @@ Student → Darsy (حساب المنصة)
 
 ## 13. الخطوات التالية
 
+> ✅ **أُنجزت:** Phase 2 — PRD موجود الآن في `02-phase2-prd.md`.
+
 بعد اعتماد هذا المستند (أو تعديل أي قرار من القرارات المفتوحة أعلاه)، الخطوة التالية هي **Phase 2 — Product Requirements**:
 - PRD كامل، Functional/Non-Functional Requirements، Business Rules النهائية، User Stories + Acceptance Criteria — مبنية على القرارات المعتمدة هنا.
 
